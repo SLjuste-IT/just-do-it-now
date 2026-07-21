@@ -1,0 +1,13 @@
+# Normalize line endings on commit.
+* text=auto
+
+# Shell scripts MUST stay LF — CRLF breaks them on Linux ("bash\r" errors).
+*.sh text eol=lf
+
+# Binary assets — never touch line endings.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.woff binary
+*.woff2 binary

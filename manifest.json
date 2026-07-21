@@ -1,0 +1,65 @@
+{
+  "id": "/",
+  "name": "JUST DO IT NOW",
+  "short_name": "Just Do It Now",
+  "description": "Plan your day and get things done — tasks, projects, reminders, habits, a focus timer, and a calendar, all in one fast app that syncs across your devices.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#F6F4EE",
+  "theme_color": "#F6F4EE",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    {
+      "src": "/welcome-hero.png",
+      "sizes": "1536x1024",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Plan your day with tasks, projects, reminders, habits, a focus timer, and a calendar — all in one app."
+    },
+    {
+      "src": "/screenshots/desktop-overview.png",
+      "sizes": "1440x900",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Organize. Plan. Get Things Done. — your day at a glance."
+    },
+    {
+      "src": "/screenshots/mobile-dashboard.png",
+      "sizes": "824x1760",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Your day at a glance: todos, habits, reminders, and calendar."
+    },
+    {
+      "src": "/screenshots/mobile-todos.png",
+      "sizes": "824x1760",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Track today's todos and check them off as you go."
+    },
+    {
+      "src": "/screenshots/mobile-focus.png",
+      "sizes": "824x1760",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Stay in deep work with the built-in focus timer."
+    },
+    {
+      "src": "/screenshots/mobile-calendar.png",
+      "sizes": "824x1760",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "See everything on the calendar and never miss a deadline."
+    }
+  ]
+}

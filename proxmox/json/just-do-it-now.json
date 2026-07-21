@@ -1,0 +1,40 @@
+{
+  "name": "JUST DO IT NOW",
+  "slug": "just-do-it-now",
+  "categories": [
+    12
+  ],
+  "date_created": "2026-07-21",
+  "type": "ct",
+  "updateable": true,
+  "privileged": false,
+  "config_path": "/opt/just-do-it-now",
+  "interface_port": 8080,
+  "documentation": "https://pocketbase.io/docs/",
+  "website": "https://todo.serverkakoulabs.org/",
+  "logo": null,
+  "description": "Self-hosted to-do, habit and project tracker (installable PWA) backed by PocketBase. Includes weekly email reports and habit reminders. The single PocketBase process serves both the web app and its API on port 8080.",
+  "install_methods": [
+    {
+      "type": "default",
+      "script": "ct/just-do-it-now.sh",
+      "resources": {
+        "cpu": 1,
+        "ram": 512,
+        "hdd": 4,
+        "os": "debian",
+        "version": "13"
+      }
+    }
+  ],
+  "default_credentials": {
+    "username": null,
+    "password": null
+  },
+  "notes": [
+    {
+      "text": "First run: open http://<ip>:8080/_/ to create the PocketBase superuser (admin). Configure SMTP there to enable the weekly report and habit-reminder emails.",
+      "type": "info"
+    }
+  ]
+}

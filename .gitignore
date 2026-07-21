@@ -1,0 +1,26 @@
+# ---- Never publish: local tooling & secrets --------------------------------
+# .claude/ holds your local dev config incl. the n8n webhook URL in
+# static-server.ps1 and your local Claude Code settings.
+.claude/
+
+# ---- Never publish: PocketBase runtime data (the live database) ------------
+pb_data/
+
+# ---- Secrets / environment -------------------------------------------------
+.env
+.env.*
+*.pem
+*.key
+
+# ---- Logs & editor/backup cruft --------------------------------------------
+*.log
+errors.log
+index.html.bak-*
+index.html.prepalette-*
+index.html.prethemes-*
+*.bak
+
+# ---- OS / OneDrive junk ----------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini

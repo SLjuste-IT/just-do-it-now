@@ -1,0 +1,31 @@
+# Keep these out of the uploaded static assets.
+#
+# NOTE: .assetsignore is honoured by Workers static assets, NOT by Cloudflare
+# Pages. This project deploys as Pages (advanced mode _worker.js), so the
+# authoritative guard is the BLOCKED_PATHS list at the top of _worker.js.
+# This file is here as a second layer and for a future migration to Workers.
+
+_worker.js
+_routes.json
+.assetsignore
+
+# Server-side PocketBase sources — deployed to the PB server separately.
+pb_hooks/
+pb_migrations/
+
+# Design docs and implementation plans.
+docs/
+
+# Local tooling config.
+.claude/
+.git/
+.env
+.env.*
+
+# Editor/OS noise and local backups.
+*.bak
+*.bak-*
+index.html.*
+*.log
+node_modules/
+.DS_Store
