@@ -139,4 +139,5 @@ echo
 ok "JUST DO IT NOW is installed."
 echo -e "   ${GN}Open the app:${CL}      http://${IP}:${PORT}/"
 echo -e "   ${GN}Create admin/SMTP:${CL} http://${IP}:${PORT}/_/"
+echo -e "   ${BL}Email codes:${CL}      require SMTP (admin -> Settings -> Mail)"
 echo -e "   ${BL}Update later:${CL}      re-run this same command."
