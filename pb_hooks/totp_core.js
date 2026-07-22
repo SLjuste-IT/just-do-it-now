@@ -38,4 +38,24 @@ function buildUri(secret, account, issuer) {
     "&algorithm=SHA1&digits=6&period=30";
 }
 
-module.exports = { verifyTotp: verifyTotp, buildUri: buildUri };
+// UTF-8 bytes of an ASCII/utf8 string.
+function _strBytes(s) {
+  var b = [];
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    if (c < 128) b.push(c);
+    else if (c < 2048) b.push(192 | (c >> 6), 128 | (c & 63));
+    else b.push(224 | (c >> 12), 128 | ((c >> 6) & 63), 128 | (c & 63));
+  }
+  return b;
+}
+
+// SHA-1 hex digest of a string (used to hash single-use backup codes).
+function sha1hex(s) {
+  var h = _sha1(_strBytes("" + s));
+  var o = "";
+  for (var i = 0; i < h.length; i++) o += ("0" + h[i].toString(16)).slice(-2);
+  return o;
+}
+
+module.exports = { verifyTotp: verifyTotp, buildUri: buildUri, sha1hex: sha1hex };
