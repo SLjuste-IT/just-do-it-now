@@ -2,8 +2,10 @@
 /**
  * totp.pb.js — authenticator-app (TOTP) 2FA endpoints.
  * ----------------------------------------------------------------------------
- * The engine lives in totp_core.js and is require()'d INSIDE each handler
- * (PocketBase runs handlers in an isolated context, like weekly_report.pb.js).
+ * The engine + helpers live in totp_core.js and are require()'d INSIDE each
+ * handler, because PocketBase runs handlers in an isolated context with NO
+ * access to this file's top-level declarations (same as weekly_report.pb.js).
+ * Only globals ($app, $security, DynamicModel, *Error, e.*) are usable directly.
  *
  *   POST /api/jdin/2fa/status   (auth)            -> { enabled }
  *   POST /api/jdin/2fa/setup    (auth)            -> { secret, uri }   (not active yet)
@@ -11,22 +13,7 @@
  *   POST /api/jdin/2fa/disable  (auth) {code}     -> { ok:true }
  *   POST /api/jdin/login  (public) {email,password,code?}
  *        -> { token, record } | { mfaRequired:true }
- *
- * Secrets/backup-code hashes live in hidden fields (totpSecret, totpBackup) and
- * are never returned to clients except the one-time setup secret / backup list.
  */
-
-var B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-var CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous chars
-
-function _rand(n, alphabet) {
-  try { return $security.randomStringWithAlphabet(n, alphabet); }
-  catch (_) {
-    var s = "";
-    for (var i = 0; i < n; i++) s += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
-    return s;
-  }
-}
 
 routerAdd("POST", "/api/jdin/2fa/status", (e) => {
   if (!e.auth) throw new UnauthorizedError("Sign in first.");
@@ -35,13 +22,13 @@ routerAdd("POST", "/api/jdin/2fa/status", (e) => {
 
 routerAdd("POST", "/api/jdin/2fa/setup", (e) => {
   if (!e.auth) throw new UnauthorizedError("Sign in first.");
-  var secret = _rand(32, B32);
+  var totp = require(`${__hooks}/totp_core.js`);
+  var secret = totp.randB32(32);
   e.auth.set("totpSecret", secret);
   e.auth.set("totpEnabled", false);
   e.app.save(e.auth);
   var account = "user";
   try { account = e.auth.email() || account; } catch (_) {}
-  var totp = require(`${__hooks}/totp_core.js`);
   return e.json(200, { secret: secret, uri: totp.buildUri(secret, account, "Just Do It Now") });
 });
 
@@ -49,15 +36,15 @@ routerAdd("POST", "/api/jdin/2fa/enable", (e) => {
   if (!e.auth) throw new UnauthorizedError("Sign in first.");
   var data = new DynamicModel({ code: "" });
   e.bindBody(data);
+  var totp = require(`${__hooks}/totp_core.js`);
   var secret = e.auth.getString("totpSecret");
   if (!secret) throw new BadRequestError("Start setup first.");
-  var totp = require(`${__hooks}/totp_core.js`);
   if (!totp.verifyTotp(secret, String(data.code || ""), 1)) {
     throw new BadRequestError("That code isn't right — use the current one from your app.");
   }
   var plain = [], hashed = [];
   for (var i = 0; i < 8; i++) {
-    var c = _rand(10, CODE_ALPHABET).toLowerCase();
+    var c = totp.randCode();
     plain.push(c);
     hashed.push(totp.sha1hex(c));
   }

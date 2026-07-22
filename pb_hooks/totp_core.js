@@ -58,4 +58,18 @@ function sha1hex(s) {
   return o;
 }
 
-module.exports = { verifyTotp: verifyTotp, buildUri: buildUri, sha1hex: sha1hex };
+// Secure random helpers (used from inside handlers, where $security is available;
+// falls back to Math.random if it isn't). Kept here so handlers can reach them
+// via require() despite PocketBase's isolated-handler context.
+function _rand(n, alphabet) {
+  try { return $security.randomStringWithAlphabet(n, alphabet); }
+  catch (_) {
+    var s = "";
+    for (var i = 0; i < n; i++) s += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+    return s;
+  }
+}
+function randB32(n) { return _rand(n || 32, "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"); }
+function randCode() { return _rand(10, "ABCDEFGHJKLMNPQRSTUVWXYZ23456789").toLowerCase(); } // no ambiguous chars
+
+module.exports = { verifyTotp: verifyTotp, buildUri: buildUri, sha1hex: sha1hex, randB32: randB32, randCode: randCode };
