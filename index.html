@@ -1811,6 +1811,10 @@
                   <div class="pt-2"><button type="submit" class="btn-secondary w-full sm:w-auto">Change Password</button></div>
                 </form>
               </div>
+              <div class="card p-6" id="twofaCard" style="display:none;">
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white tracking-tight mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">Two-Factor Authentication</h3>
+                <div id="twofaBody"><p class="text-sm text-slate-500">Loading…</p></div>
+              </div>
                   </div>
                   <div class="space-y-6">
                     <div class="card p-6 text-center flex flex-col items-center">
@@ -4055,7 +4059,12 @@
         if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
         try {
           const email = $('#signinEmail').value.trim().toLowerCase(); const password = $('#signinPassword').value;
-          await pb.collection('users').authWithPassword(email, password);
+          if (location.hostname !== 'todo.serverkakoulabs.org' && window.__jdinLogin) {
+            // Self-hosted: 2FA-aware login (issues a session only after any TOTP code).
+            await window.__jdinLogin(email, password);
+          } else {
+            await pb.collection('users').authWithPassword(email, password);
+          }
           // No MFA required (or already satisfied) — finish straight away.
           await completeSignIn(email);
         } catch (err) {
@@ -8330,6 +8339,124 @@
       refresh();
       setInterval(refresh, 1000); // robust even if the pb instance is re-created
       try { if (typeof pb.authStore.onChange === 'function') pb.authStore.onChange(refresh); } catch (e) {}
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+  })();
+</script>
+
+<!-- JUST DO IT NOW — two-factor (TOTP) sign-in prompt (self-hosted only) -->
+<div id="twofaLoginOverlay" style="display:none;position:fixed;inset:0;z-index:2147483000;background:rgba(15,23,42,.78);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;">
+  <div style="width:100%;max-width:380px;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.45);overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:22px 24px;color:#fff;">
+      <div style="font-size:18px;font-weight:800;">Two-factor code</div>
+      <div style="font-size:13px;opacity:.92;margin-top:4px;">Enter the 6-digit code from your authenticator app.</div>
+    </div>
+    <div style="padding:22px 24px;">
+      <input id="twofaLoginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:9px;font-size:18px;letter-spacing:3px;text-align:center;margin-bottom:8px;">
+      <div id="twofaLoginErr" style="color:#dc2626;font-size:13px;min-height:18px;margin-bottom:8px;"></div>
+      <button id="twofaLoginBtn" style="width:100%;padding:12px;border:0;border-radius:10px;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:8px;">Verify</button>
+      <button id="twofaLoginCancel" style="width:100%;padding:10px;border:0;border-radius:10px;background:transparent;color:#64748b;font-size:13px;cursor:pointer;">Cancel</button>
+      <p style="font-size:12px;color:#94a3b8;margin-top:6px;text-align:center;">Lost your phone? Enter one of your backup codes.</p>
+    </div>
+  </div>
+</div>
+<script>
+  // Two-factor (TOTP): the Settings setup card + the 2FA-aware sign-in. Self-hosted
+  // only — inert on production and for accounts without 2FA enabled.
+  (function () {
+    if (location.hostname === 'todo.serverkakoulabs.org') return;
+    function el(id){ return document.getElementById(id); }
+    function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    async function api(path, body){ return await pb.send(path, { method:'POST', body: body || {} }); }
+    function loadQR(cb){ if (window.qrcode) return cb(); var s=document.createElement('script'); s.src='/qrcode.js'; s.onload=function(){cb();}; s.onerror=function(){cb();}; document.head.appendChild(s); }
+    function setBody(h){ var b=el('twofaBody'); if (b) b.innerHTML=h; }
+
+    async function renderStatus(){
+      var card=el('twofaCard');
+      if (!card || !el('twofaBody')) return;
+      if (!window.pb || !pb.authStore || !pb.authStore.isValid){ card.style.display='none'; return; }
+      card.style.display='block';
+      var st; try { st=await api('/api/jdin/2fa/status'); } catch(e){ card.style.display='none'; return; }
+      if (st && st.enabled){
+        setBody('<div class="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 font-semibold mb-3"><i class="fa-solid fa-shield-halved"></i> Two-factor is ON</div><p class="text-sm text-slate-500 mb-4">You enter a code from your authenticator app each time you sign in.</p><button type="button" id="twofaDisableBtn" class="btn-secondary !text-rose-600 !border-rose-200 dark:!border-rose-900/30">Turn off two-factor</button>');
+        var d=el('twofaDisableBtn'); if (d) d.onclick=disableFlow;
+      } else {
+        setBody('<p class="text-sm text-slate-500 mb-4">Add a second step at sign-in using an authenticator app (iPhone Passwords, Microsoft Authenticator, Duo, Google Authenticator…).</p><button type="button" id="twofaEnableBtn" class="btn-primary">Enable two-factor</button>');
+        var b=el('twofaEnableBtn'); if (b) b.onclick=setupFlow;
+      }
+    }
+    async function setupFlow(){
+      setBody('<p class="text-sm text-slate-500">Setting up…</p>');
+      var s; try { s=await api('/api/jdin/2fa/setup'); } catch(e){ setBody('<p class="text-sm text-rose-600">Could not start setup.</p>'); return; }
+      setBody('<p class="text-sm text-slate-600 dark:text-slate-300 mb-3">1. Scan this with your authenticator app:</p><div id="twofaQr" class="flex justify-center mb-3"><p class="text-xs text-slate-400">Loading QR…</p></div><p class="text-xs text-slate-500 mb-1">Can\'t scan? Enter this key manually:</p><code class="block text-xs bg-slate-100 dark:bg-slate-800 rounded p-2 mb-4 break-all">'+esc(s.secret)+'</code><p class="text-sm text-slate-600 dark:text-slate-300 mb-2">2. Enter the 6-digit code it shows:</p><input id="twofaCode" inputmode="numeric" maxlength="6" placeholder="123456" class="ui-input text-sm mb-2" style="max-width:170px;"><div id="twofaErr" class="text-sm text-rose-600 mb-2" style="min-height:18px;"></div><button type="button" id="twofaVerifyBtn" class="btn-primary">Verify &amp; turn on</button> <button type="button" id="twofaCancelBtn" class="btn-secondary">Cancel</button>');
+      loadQR(function(){
+        var q=el('twofaQr'); if (!q) return;
+        try { var qr=qrcode(0,'M'); qr.addData(s.uri); qr.make(); q.innerHTML='<img alt="QR code" style="width:184px;height:184px;image-rendering:pixelated;border:8px solid #fff;border-radius:8px;background:#fff;" src="'+qr.createDataURL(4,4)+'">'; }
+        catch(e){ q.innerHTML='<p class="text-xs text-slate-400">Add it manually with the key below.</p>'; }
+      });
+      var vb=el('twofaVerifyBtn'), cb=el('twofaCancelBtn');
+      if (cb) cb.onclick=renderStatus;
+      if (vb) vb.onclick=async function(){
+        var code=(el('twofaCode').value||'').trim(), err=el('twofaErr'); err.textContent='';
+        if (!/^\d{6}$/.test(code)){ err.textContent='Enter the 6-digit code.'; return; }
+        vb.disabled=true; vb.textContent='Verifying…';
+        try { var r=await api('/api/jdin/2fa/enable',{code:code}); showBackups(r.backupCodes||[]); }
+        catch(e){ err.textContent=(e&&e.data&&e.data.message)||'That code isn\'t right.'; vb.disabled=false; vb.textContent='Verify & turn on'; }
+      };
+      var ci=el('twofaCode'); if (ci) ci.addEventListener('keydown', function(ev){ if (ev.key==='Enter'&&vb) vb.click(); });
+    }
+    function showBackups(codes){
+      var list=(codes||[]).map(function(c){ return '<code class="text-xs bg-slate-100 dark:bg-slate-800 rounded px-2 py-1">'+esc(c)+'</code>'; }).join(' ');
+      setBody('<div class="flex items-center gap-2 text-sm text-emerald-600 font-semibold mb-3"><i class="fa-solid fa-circle-check"></i> Two-factor is on!</div><p class="text-sm text-slate-600 dark:text-slate-300 mb-2"><b>Save these backup codes.</b> Each works once if you lose your phone — they won\'t be shown again.</p><div class="flex flex-wrap gap-2 mb-4">'+list+'</div><button type="button" id="twofaDoneBtn" class="btn-primary">Done</button>');
+      var d=el('twofaDoneBtn'); if (d) d.onclick=renderStatus;
+    }
+    async function disableFlow(){
+      setBody('<p class="text-sm text-slate-600 dark:text-slate-300 mb-2">Enter a current code from your authenticator to turn off two-factor:</p><input id="twofaDisCode" inputmode="numeric" maxlength="6" placeholder="123456" class="ui-input text-sm mb-2" style="max-width:170px;"><div id="twofaDisErr" class="text-sm text-rose-600 mb-2" style="min-height:18px;"></div><button type="button" id="twofaDisBtn" class="btn-secondary !text-rose-600">Turn off</button> <button type="button" id="twofaDisCancel" class="btn-secondary">Cancel</button>');
+      var b=el('twofaDisBtn'), c=el('twofaDisCancel');
+      if (c) c.onclick=renderStatus;
+      if (b) b.onclick=async function(){
+        var code=(el('twofaDisCode').value||'').trim(), err=el('twofaDisErr'); err.textContent='';
+        if (!/^\d{6}$/.test(code)){ err.textContent='Enter the 6-digit code.'; return; }
+        b.disabled=true;
+        try { await api('/api/jdin/2fa/disable',{code:code}); renderStatus(); }
+        catch(e){ err.textContent=(e&&e.data&&e.data.message)||'That code isn\'t right.'; b.disabled=false; }
+      };
+    }
+
+    function promptCode(errorMsg){
+      return new Promise(function(resolve){
+        var ov=el('twofaLoginOverlay'); if (!ov){ resolve(null); return; }
+        var codeI=el('twofaLoginCode'), btn=el('twofaLoginBtn'), cancel=el('twofaLoginCancel'), err=el('twofaLoginErr');
+        codeI.value=''; err.textContent=errorMsg||''; btn.disabled=false; ov.style.display='flex';
+        setTimeout(function(){ try{ codeI.focus(); }catch(e){} }, 50);
+        function done(v){ ov.style.display='none'; btn.onclick=null; cancel.onclick=null; codeI.onkeydown=null; resolve(v); }
+        btn.onclick=function(){ var c=(codeI.value||'').trim(); if (!c){ err.textContent='Enter the code.'; return; } done(c); };
+        cancel.onclick=function(){ done(null); };
+        codeI.onkeydown=function(ev){ if (ev.key==='Enter') btn.onclick(); };
+      });
+    }
+    window.__jdinLogin = async function(email, password){
+      var resp = await pb.send('/api/jdin/login', { method:'POST', body:{ email:email, password:password } });
+      if (resp && resp.mfaRequired){
+        var errMsg='';
+        for (var tries=0; tries<6; tries++){
+          var code = await promptCode(errMsg);
+          if (code===null) throw new Error('Two-factor code required.');
+          try { resp = await pb.send('/api/jdin/login', { method:'POST', body:{ email:email, password:password, code:code } }); errMsg=''; break; }
+          catch(e){ errMsg=(e&&e.data&&e.data.message)||'Invalid code.'; resp=null; }
+        }
+        if (!resp) throw new Error('Too many attempts. Please sign in again.');
+      }
+      if (!resp || !resp.token) throw new Error('Sign in failed.');
+      pb.authStore.save(resp.token, resp.record || null);
+      try { await pb.collection('users').authRefresh(); } catch(_){}
+    };
+
+    function init(){
+      if (!window.pb || !pb.authStore){ setTimeout(init, 400); return; }
+      renderStatus();
+      try { if (typeof pb.authStore.onChange === 'function') pb.authStore.onChange(renderStatus); } catch(e){}
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
