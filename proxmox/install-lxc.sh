@@ -44,6 +44,12 @@ export COMMUNITY_SCRIPTS_ROOT="$WORK"
 # Where the container pulls the app files from
 export APP_REPO="$REPO" APP_REF="$REF"
 
+# Pre-seed the logo cache so the install shows our branded ASCII header
+# (the framework's get_header only fetches logos from the community-scripts repo).
+mkdir -p /usr/local/community-scripts/headers/ct
+curl -fsSL "https://raw.githubusercontent.com/${REPO}/${REF}/proxmox/ct/headers/just-do-it-now" \
+  -o /usr/local/community-scripts/headers/ct/just-do-it-now || true
+
 echo "-> Launching the installer (a menu will appear) ..."
 cd "$WORK"
 bash ct/just-do-it-now.sh
