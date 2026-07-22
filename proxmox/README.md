@@ -46,6 +46,37 @@ you make the LXC/VM first, which is what makes it portable beyond Proxmox.
 
 ---
 
+## Optional: two-factor login (email code)
+
+The app already includes two-step login (password → a one-time code by email) — it's
+just **off by default**, because the code is emailed and a fresh install has no mail
+server. Turning it on needs **SMTP** (a Gmail app password, Brevo, SendGrid, Mailgun…).
+Do this **after** the first-run credential setup, and confirm SMTP works first, or
+users can't receive the code and get locked out.
+
+Inside the container:
+
+```bash
+# 1) create an admin (superuser) once
+cd /opt/just-do-it-now && ./pocketbase superuser upsert you@example.com 'a-strong-password'
+# 2) temporarily reveal the hidden dashboard
+systemctl set-environment SHOW_ADMIN=1 && systemctl restart just-do-it-now
+```
+
+Open `http://<IP>:8080/_/`, log in, then:
+- **Settings → Mail settings** → enter your SMTP details → Save (send a test email to confirm).
+- **Collections → `users` → Options** → enable **MFA** and **OTP** → Save.
+
+Hide the dashboard again:
+
+```bash
+systemctl unset-environment SHOW_ADMIN && systemctl restart just-do-it-now
+```
+
+Every login now asks for the emailed code as a second factor.
+
+---
+
 ## ⚠️ Prerequisites (do these before the script can work)
 
 The installer downloads the app from a **public GitHub repo** (`APP_REPO`). It is
