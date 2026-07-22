@@ -137,7 +137,7 @@ ADMIN_EMAIL="admin@localhost.com"
 CRED_FILE="${INSTALL_DIR}/.first_login"
 if [ ! -f "$CRED_FILE" ]; then
   msg "Creating first-login account"
-  ADMIN_PW="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)"
+  ADMIN_PW="$(cat /proc/sys/kernel/random/uuid)"; ADMIN_PW="${ADMIN_PW//-/}"; ADMIN_PW="${ADMIN_PW:0:16}"
   for _ in $(seq 1 20); do curl -sf "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1 && break; sleep 1; done
   CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${PORT}/api/collections/users/records" \
     -H "Content-Type: application/json" \

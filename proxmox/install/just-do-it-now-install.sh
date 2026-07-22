@@ -81,7 +81,7 @@ CRED_FILE="${APP_DIR}/.first_login"
 FIRST_URL="http://$(hostname -I 2>/dev/null | awk '{print $1}'):8080/"
 if [ ! -f "$CRED_FILE" ]; then
   msg_info "Creating first-login account"
-  ADMIN_PW="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)"
+  ADMIN_PW="$(cat /proc/sys/kernel/random/uuid)"; ADMIN_PW="${ADMIN_PW//-/}"; ADMIN_PW="${ADMIN_PW:0:16}"
   for _ in $(seq 1 20); do curl -sf "http://127.0.0.1:8080/api/health" >/dev/null 2>&1 && break; sleep 1; done
   JDIN_CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/collections/users/records" \
     -H "Content-Type: application/json" \
