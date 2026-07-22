@@ -5,7 +5,7 @@ source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxV
 # License: MIT | https://github.com/community-scripts/ProxmoxVED/raw/main/LICENSE
 # Source: https://todo.serverkakoulabs.org/ | Github: https://github.com/SLjuste-IT/just-do-it-now
 
-APP="JUST DO IT NOW"
+APP="Just-Do-It-Now"
 var_tags="${var_tags:-todo;productivity;pocketbase}"
 var_cpu="${var_cpu:-1}"
 var_ram="${var_ram:-512}"

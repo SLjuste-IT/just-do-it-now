@@ -5,10 +5,16 @@ and its API at `/api/*` on port **8080** — no Docker, no reverse proxy, no COR
 
 ```
 proxmox/
-├─ quick-install.sh                  # PORTABLE one-liner: run inside any Debian LXC/VM/TrueNAS
+├─ install-lxc.sh                    # ONE-COMMAND: run on the PVE host -> creates a dedicated LXC + installs
+├─ quick-install.sh                  # PORTABLE: run INSIDE an existing Debian LXC/VM/TrueNAS
 ├─ ct/just-do-it-now.sh              # community-scripts: creates the LXC, calls installer, updates
 ├─ install/just-do-it-now-install.sh # community-scripts: runs INSIDE the container (needs build.func)
 └─ json/just-do-it-now.json          # community-scripts website metadata (-> frontend/public/json/)
+
+Run **`install-lxc.sh`** on the Proxmox host for the full one-command experience
+(wizard -> new LXC with its own IP -> app installed -> prints `http://<IP>:8080/`).
+It runs the community-scripts framework from a temp copy, so it works before the
+script is merged. This is the pre-merge stand-in for the official website one-liner.
 ```
 
 Two independent distribution routes:
