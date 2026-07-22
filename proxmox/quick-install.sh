@@ -132,10 +132,35 @@ systemctl daemon-reload
 systemctl enable -q --now "$SERVICE"
 ok "Service ${SERVICE} is running"
 
+# ---- first-login account (random password) ---------------------------------
+ADMIN_EMAIL="admin@localhost.com"
+CRED_FILE="${INSTALL_DIR}/.first_login"
+if [ ! -f "$CRED_FILE" ]; then
+  msg "Creating first-login account"
+  ADMIN_PW="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)"
+  for _ in $(seq 1 20); do curl -sf "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1 && break; sleep 1; done
+  CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${PORT}/api/collections/users/records" \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PW}\",\"passwordConfirm\":\"${ADMIN_PW}\",\"name\":\"Admin\"}" || echo 000)"
+  if [ "$CODE" = "200" ] || [ "$CODE" = "201" ]; then
+    printf '%s\n%s\n' "$ADMIN_EMAIL" "$ADMIN_PW" >"$CRED_FILE"
+    chmod 600 "$CRED_FILE"
+    JDIN_NEW_LOGIN=1
+    ok "First-login account created"
+  else
+    ok "Sign-up is open (first-login account skipped)"
+  fi
+fi
+
 # ---- done ------------------------------------------------------------------
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 [ -n "$IP" ] || IP="<this-host-ip>"
 echo
 ok "JUST DO IT NOW is installed."
 echo -e "   ${GN}Open the app:${CL}  http://${IP}:${PORT}/"
+if [ "${JDIN_NEW_LOGIN:-}" = "1" ]; then
+  echo -e "   ${GN}First login:${CL}   ${ADMIN_EMAIL}"
+  echo -e "   ${GN}Password:${CL}      ${ADMIN_PW}"
+  echo -e "   ${BL}You'll be asked to set your own email + password.${CL}"
+fi
 echo -e "   ${BL}Update later:${CL}  re-run this same command."

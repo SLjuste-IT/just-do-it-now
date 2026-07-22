@@ -75,6 +75,27 @@ EOF
 systemctl enable -q --now just-do-it-now
 msg_ok "Created Service"
 
+# ---- first-login account (random password, shown at the end) ---------------
+ADMIN_EMAIL="admin@localhost.com"
+CRED_FILE="${APP_DIR}/.first_login"
+FIRST_URL="http://$(hostname -I 2>/dev/null | awk '{print $1}'):8080/"
+if [ ! -f "$CRED_FILE" ]; then
+  msg_info "Creating first-login account"
+  ADMIN_PW="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)"
+  for _ in $(seq 1 20); do curl -sf "http://127.0.0.1:8080/api/health" >/dev/null 2>&1 && break; sleep 1; done
+  JDIN_CODE="$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/collections/users/records" \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PW}\",\"passwordConfirm\":\"${ADMIN_PW}\",\"name\":\"Admin\"}" || echo 000)"
+  if [ "$JDIN_CODE" = "200" ] || [ "$JDIN_CODE" = "201" ]; then
+    printf '%s\n%s\n' "$ADMIN_EMAIL" "$ADMIN_PW" >"$CRED_FILE"
+    chmod 600 "$CRED_FILE"
+    JDIN_NEW_LOGIN=1
+    msg_ok "Created first-login account"
+  else
+    msg_ok "Sign-up is open (first-login account skipped)"
+  fi
+fi
+
 motd_ssh
 customize
 
@@ -82,3 +103,12 @@ msg_info "Cleaning up"
 $STD apt-get -y autoremove
 $STD apt-get -y autoclean
 msg_ok "Cleaned"
+
+if [ "${JDIN_NEW_LOGIN:-}" = "1" ]; then
+  echo ""
+  echo -e " ${GN}First-login credentials (you'll be prompted to change them):${CL}"
+  echo -e "   URL:      ${FIRST_URL}"
+  echo -e "   Email:    ${ADMIN_EMAIL}"
+  echo -e "   Password: ${ADMIN_PW}"
+  echo ""
+fi
