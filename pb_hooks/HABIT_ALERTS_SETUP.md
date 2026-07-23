@@ -17,7 +17,7 @@ Edit the `CONFIG` block at the top of `habit_alerts_core.js`:
 |-----|---------|---------|
 | `leadMinutes` | `15` | How many minutes before `alertTime` the email goes out. |
 | `onlyVerified` | `true` | Only email accounts with `verified == true`. |
-| `allowEmails` | `["lejuste.s09@gmail.com"]` | `[]` = every eligible user. |
+| `allowEmails` | `[]` | `[]` = every eligible user; or `["you@example.com"]` to restrict. |
 | `skipIfDoneToday` | `true` | Habit already checked off today → stay silent. |
 | `tz` | US Eastern | `{ stdOffsetHours: -5, dstOffsetHours: -4, useUSDstRule: true }`. The server runs UTC and PocketBase's JS runtime has no `Intl`, so the user's wall clock is derived from this rule (EST/EDT switch on the 2nd Sunday of March / 1st Sunday of November). |
 
