@@ -1969,16 +1969,13 @@
     // Mode" and "Bot Fight Mode" for pocketbase.serverkakoulabs.org, OR add a WAF rule that SKIPs
     // the managed challenge for path /api/* . (A Worker /api proxy does NOT help — its request to
     // PocketBase is challenged the same way.)
-    // Third case (self-hosted): when the app runs on any OTHER origin — e.g. a
-    // Proxmox/LXC install — PocketBase serves BOTH this page and its own /api on
-    // the same origin, so point the SDK at window.location.origin. Production and
-    // local dev keep their existing, deliberately-tuned targets untouched.
-    const PB_URL =
-      (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '')
-        ? 'http://192.168.8.31:8080'                 // local dev on the home network
-        : (location.hostname === 'todo.serverkakoulabs.org')
-          ? 'https://pocketbase.serverkakoulabs.org' // hosted production: direct to PB (Cloudflare-tuned)
-          : window.location.origin;                  // self-hosted install: same-origin PocketBase
+    // Everything EXCEPT the hosted production domain talks to its OWN same-origin
+    // PocketBase: a self-hosted LXC/VM serves this page and /api on one origin, and
+    // local dev reaches PB through the static-server proxy on the same origin too.
+    // Only the production domain points at the dedicated, Cloudflare-tuned endpoint.
+    const PB_URL = (location.hostname === 'todo.serverkakoulabs.org')
+      ? 'https://pocketbase.serverkakoulabs.org' // hosted production: direct to PB (Cloudflare-tuned)
+      : window.location.origin;                  // dev + self-hosted: own same-origin PocketBase
     const createOfflinePB = () => ({
       authStore: { isValid: false, model: null, clear() {} },
       collection() {
