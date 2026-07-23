@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- Self-hosted installs hide the author's Contact/Web3Forms section (its submissions
+       would otherwise reach the original maintainer). Production is unaffected. Set here
+       in <head>, before first paint, so the section never flashes on screen. -->
+  <script>if (location.hostname !== 'todo.serverkakoulabs.org') { document.documentElement.classList.add('jdin-selfhost'); }</script>
+  <style>html.jdin-selfhost #contact, html.jdin-selfhost a[href="#contact"] { display: none !important; }</style>
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
