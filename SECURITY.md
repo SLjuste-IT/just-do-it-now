@@ -12,8 +12,9 @@ Instead, use one of these private channels:
    Go to the repository's **Security** tab → **Report a vulnerability**.
    This opens a private advisory that only the maintainer can see.
 
-2. **Email:** [support@serverkakoulabs.org](mailto:support@serverkakoulabs.org)
-   Include "SECURITY" in the subject line.
+2. **Contact form:** submit through the **Contact** section at
+   <https://todo.serverkakoulabs.org/#contact> and start your message with
+   **"SECURITY"** so it's routed correctly.
 
 ### What to include
 
