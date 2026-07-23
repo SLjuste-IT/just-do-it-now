@@ -100,6 +100,22 @@ fi
 motd_ssh
 customize
 
+# The community-scripts DEV framework (ProxmoxVED) stamps a "DEVELOPMENT version -
+# do NOT use in production" banner into the container MOTD. Replace it with a clean
+# app banner so self-hosters aren't alarmed by a dev warning.
+cat >/etc/motd <<'MOTD'
+
+JUST DO IT NOW - self-hosted to-do, habit & project tracker
+
+MOTD
+cat >/etc/profile.d/00_lxc-details.sh <<'PROFILE'
+echo ""
+echo -e " \033[1;36mJUST DO IT NOW\033[0m"
+echo -e " Open the app:  \033[1;32mhttp://$(hostname -I 2>/dev/null | awk '{print $1}'):8080/\033[0m"
+echo ""
+PROFILE
+chmod +x /etc/profile.d/00_lxc-details.sh
+
 msg_info "Cleaning up"
 $STD apt-get -y autoremove
 $STD apt-get -y autoclean
