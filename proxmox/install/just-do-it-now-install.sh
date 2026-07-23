@@ -62,6 +62,7 @@ After       = network.target
 [Service]
 Type             = simple
 WorkingDirectory = ${APP_DIR}
+Environment      = JDIN_SELFHOST=1
 LimitNOFILE      = 4096
 Restart          = always
 RestartSec       = 5s

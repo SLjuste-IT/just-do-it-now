@@ -2,34 +2,32 @@
 /**
  * hide_admin.pb.js — keep end-users inside the app, out of PocketBase.
  * ----------------------------------------------------------------------------
- * A distributed self-hosted app should expose ONLY the to-do app (/) and its
- * API (/api/*, which is locked down per-user by collection rules). PocketBase
- * always serves its superuser dashboard at /_/, so this hook returns 404 for
- * those requests — to a visitor the dashboard simply isn't there.
+ * Returns 404 for the /_/ dashboard so a distributed install exposes only the
+ * app (/) and its per-user-locked API (/api/*).
  *
- * The operator still manages the backend:
- *   • superuser accounts via the CLI:   ./pocketbase superuser upsert EMAIL PASS
- *   • to use the dashboard itself (e.g. to configure SMTP), start the service
- *     once with the env var SHOW_ADMIN=1, do the work, then remove it + restart:
- *         systemctl set-environment SHOW_ADMIN=1   # (or Environment= in the unit)
- *         systemctl restart just-do-it-now
+ * SELF-HOST ONLY: registers only when the service sets JDIN_SELFHOST=1 (both
+ * installers do). On any other deployment — e.g. the author's production
+ * server, which USES the dashboard — this file is inert, so copying pb_hooks/
+ * there can never lock the operator out.
  *
- * Fail-open by design: if the request path can't be read for any reason the
- * request is passed straight through, so this hook can never break the app.
+ * Operator escape hatch on self-host installs:
+ *   systemctl set-environment SHOW_ADMIN=1 && systemctl restart just-do-it-now
  */
-routerUse((e) => {
-  let path = "";
-  try {
-    path = String(e.request.url.path || "");
-  } catch (_) {
-    path = "";
-  }
+if ($os.getenv("JDIN_SELFHOST") === "1") {
+  routerUse((e) => {
+    let path = "";
+    try {
+      path = String(e.request.url.path || "");
+    } catch (_) {
+      path = "";
+    }
 
-  const isDashboard = path === "/_" || path === "/_/" || path.indexOf("/_/") === 0;
+    const isDashboard = path === "/_" || path === "/_/" || path.indexOf("/_/") === 0;
 
-  if (isDashboard && $os.getenv("SHOW_ADMIN") !== "1") {
-    throw new NotFoundError();
-  }
+    if (isDashboard && $os.getenv("SHOW_ADMIN") !== "1") {
+      throw new NotFoundError();
+    }
 
-  return e.next();
-});
+    return e.next();
+  });
+}

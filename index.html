@@ -711,9 +711,10 @@
     .preview-check.empty { background: transparent; border: 1px solid #cbd5e1; color: transparent; }
   </style>
 
-  <!-- Matomo -->
+  <!-- Matomo (production only — self-hosted installs must not phone home) -->
   <script>
     var _paq = window._paq = window._paq || [];
+    if (location.hostname === 'todo.serverkakoulabs.org') {
     /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
     _paq.push(["setDocumentTitle", document.domain + "/" + document.title]);
     _paq.push(["setCookieDomain", "*.todo.serverkakoulabs.org"]);
@@ -741,6 +742,7 @@
       if (document.readyState === 'complete') schedule();
       else window.addEventListener('load', schedule);
     })();
+    }
   </script>
   <noscript><p><img referrerpolicy="no-referrer-when-downgrade" src="//matomo.serverkakoulabs.org/matomo.php?idsite=3&amp;rec=1" style="border:0;" alt="" /></p></noscript>
   <!-- End Matomo Code -->
@@ -8337,7 +8339,7 @@
       if (!window.pb || !pb.authStore) { setTimeout(init, 300); return; }
       wire();
       refresh();
-      setInterval(refresh, 1000); // robust even if the pb instance is re-created
+      setInterval(refresh, 2500); // robust even if the pb instance is re-created
       try { if (typeof pb.authStore.onChange === 'function') pb.authStore.onChange(refresh); } catch (e) {}
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

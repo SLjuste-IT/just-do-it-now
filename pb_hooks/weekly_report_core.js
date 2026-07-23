@@ -30,7 +30,7 @@ var CONFIG = {
   cron: "0 12 * * 0",
 
   onlyVerified: true,     // only email users whose account is verified
-  allowEmails: ["lejuste.s09@gmail.com"], // [] = every eligible user. Or ["you@example.com"] to restrict.
+  allowEmails: [],        // [] = every eligible user. Or ["you@example.com"] to restrict.
   skipEmptyWeeks: false,  // always send the weekly summary, even on a zero-activity week
 
   brandName: "JUST DO IT NOW",
@@ -41,7 +41,7 @@ var CONFIG = {
   //      minute, only to testEmail, ignoring skipEmptyWeeks. Turn it back off
   //      once you've confirmed the email arrives.
   testMode: false,
-  testEmail: "lejuste.s09@gmail.com",
+  testEmail: "",          // set to your address while testing
 };
 
 // ============================ date helpers ==================================

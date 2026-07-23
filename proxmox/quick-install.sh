@@ -118,6 +118,7 @@ Type=simple
 User=${RUN_USER}
 Group=${RUN_USER}
 WorkingDirectory=${INSTALL_DIR}
+Environment=JDIN_SELFHOST=1
 LimitNOFILE=4096
 Restart=always
 RestartSec=5s

@@ -1,16 +1,17 @@
 /// <reference path="../pb_data/types.d.ts" />
 /**
- * Imports the JUST DO IT NOW collections (users + projects/tasks/alerts) so a
- * fresh PocketBase has the structure the app needs for sign-up and sync.
- * Email verification / OTP are left OFF by default so self-hosters can sign in
- * before configuring SMTP; enable them in the admin once mail is set up.
+ * Imports the JUST DO IT NOW collections (users + projects/tasks/alerts).
+ * Access rules are OWNER-SCOPED: users can only read/write their own records
+ * (users.viewRule and all alerts rules are locked to the owner; a public ""
+ * rule here would let any visitor read other users' appData).
+ * Email verification / OTP default OFF so self-hosters can sign in pre-SMTP.
  */
 migrate((app) => {
   const snapshot = [
   {
     "id": "_pb_users_auth_",
     "listRule": "id = @request.auth.id",
-    "viewRule": "",
+    "viewRule": "id = @request.auth.id",
     "createRule": "",
     "updateRule": "id = @request.auth.id",
     "deleteRule": "id = @request.auth.id",
@@ -506,11 +507,11 @@ migrate((app) => {
   },
   {
     "id": "pbc_3228155173",
-    "listRule": "",
-    "viewRule": "",
-    "createRule": "",
-    "updateRule": "",
-    "deleteRule": "",
+    "listRule": "user.id ?= @request.auth.id",
+    "viewRule": "user.id ?= @request.auth.id",
+    "createRule": "@request.auth.id != \"\"",
+    "updateRule": "user.id ?= @request.auth.id",
+    "deleteRule": "user.id ?= @request.auth.id",
     "name": "alerts",
     "type": "base",
     "fields": [

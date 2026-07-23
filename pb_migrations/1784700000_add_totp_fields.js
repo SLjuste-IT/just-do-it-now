@@ -1,14 +1,15 @@
 /// <reference path="../pb_data/types.d.ts" />
 /**
- * Adds hidden TOTP fields to the users collection (2FA via authenticator app):
- * totpSecret (base32 secret), totpEnabled (bool), totpBackup (hashed backup codes).
+ * Adds HIDDEN TOTP fields to users (totpSecret/totpEnabled/totpBackup) — hidden
+ * so they can never be read or written through the public record API; only the
+ * server-side 2FA endpoints touch them. Also carries the owner-scoped viewRule.
  */
 migrate((app) => {
   const snapshot = [
 {
   "id": "_pb_users_auth_",
   "listRule": "id = @request.auth.id",
-  "viewRule": "",
+  "viewRule": "id = @request.auth.id",
   "createRule": "",
   "updateRule": "id = @request.auth.id",
   "deleteRule": "id = @request.auth.id",
@@ -219,7 +220,7 @@ migrate((app) => {
       "id": "bool1000000002",
       "name": "totpEnabled",
       "type": "bool",
-      "hidden": false,
+      "hidden": true,
       "required": false,
       "system": false,
       "presentable": false

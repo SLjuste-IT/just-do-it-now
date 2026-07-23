@@ -32,7 +32,7 @@ var CONFIG = {
   leadMinutes: 15,        // email this many minutes before the habit's alertTime
 
   onlyVerified: true,     // only email users whose account is verified
-  allowEmails: ["lejuste.s09@gmail.com"], // [] = every eligible user
+  allowEmails: [],        // [] = every eligible user
   skipIfDoneToday: true,  // habit already checked off today → no reminder
 
   brandName: "JUST DO IT NOW",
@@ -44,7 +44,7 @@ var CONFIG = {
 
   // ---- Testing: restrict recipients to testEmail and log every evaluation.
   testMode: false,
-  testEmail: "lejuste.s09@gmail.com",
+  testEmail: "",          // set to your address while testing
 };
 
 // ============================ time helpers ==================================

@@ -3,36 +3,47 @@
  * first_setup.pb.js — offline "set your own credentials" endpoint.
  * ----------------------------------------------------------------------------
  * The install creates a default account (admin@localhost.com). On first login
- * the app forces the person to set their OWN email + password. Changing an email
- * normally needs an SMTP confirmation flow, so this endpoint applies the change
- * server-side with app privileges — no mail server required.
+ * the app forces that account to set its OWN email + password; changing an
+ * email normally needs an SMTP confirmation flow, so this applies it
+ * server-side with app privileges instead.
  *
- * POST /api/jdin/first-setup   body: { "email": "...", "password": "..." }
- * Requires a valid auth token; only ever changes the caller's own record.
+ * Hardened:
+ *  - SELF-HOST ONLY: registers only when the service sets JDIN_SELFHOST=1.
+ *  - Only the DEFAULT account may call it. A normal account's (possibly stolen)
+ *    session token must not be able to silently swap its email/password —
+ *    regular accounts go through the app's password-verified flows instead.
  */
-routerAdd("POST", "/api/jdin/first-setup", (e) => {
-  const user = e.auth;
-  if (!user) {
-    throw new UnauthorizedError("You must be signed in.");
-  }
+if ($os.getenv("JDIN_SELFHOST") === "1") {
+  routerAdd("POST", "/api/jdin/first-setup", (e) => {
+    const user = e.auth;
+    if (!user) {
+      throw new UnauthorizedError("You must be signed in.");
+    }
 
-  const data = new DynamicModel({ email: "", password: "" });
-  e.bindBody(data);
+    let current = "";
+    try { current = String(user.email() || "").toLowerCase(); } catch (_) {}
+    if (current !== "admin@localhost.com") {
+      throw new ForbiddenError("Only the first-run account can use this.");
+    }
 
-  const email = String(data.email || "").trim().toLowerCase();
-  const password = String(data.password || "");
+    const data = new DynamicModel({ email: "", password: "" });
+    e.bindBody(data);
 
-  if (email.indexOf("@") < 1 || email.lastIndexOf(".") < email.indexOf("@")) {
-    throw new BadRequestError("Please enter a valid email address.");
-  }
-  if (password.length < 8) {
-    throw new BadRequestError("Password must be at least 8 characters.");
-  }
+    const email = String(data.email || "").trim().toLowerCase();
+    const password = String(data.password || "");
 
-  user.setEmail(email);
-  user.set("verified", true);
-  user.setPassword(password);
-  e.app.save(user);
+    if (email.indexOf("@") < 1 || email.lastIndexOf(".") < email.indexOf("@")) {
+      throw new BadRequestError("Please enter a valid email address.");
+    }
+    if (password.length < 8) {
+      throw new BadRequestError("Password must be at least 8 characters.");
+    }
 
-  return e.json(200, { success: true });
-});
+    user.setEmail(email);
+    user.set("verified", true);
+    user.setPassword(password);
+    e.app.save(user);
+
+    return e.json(200, { success: true });
+  });
+}
