@@ -1822,6 +1822,10 @@
                 <h3 class="text-lg font-bold text-slate-900 dark:text-white tracking-tight mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">Two-Factor Authentication</h3>
                 <div id="twofaBody"><p class="text-sm text-slate-500">Loading…</p></div>
               </div>
+              <div class="card p-6" id="calendarFeedCard" style="display:none;">
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white tracking-tight mb-4 border-b border-slate-100 dark:border-slate-800 pb-3"><i class="fa-regular fa-calendar-plus text-indigo-500 mr-2"></i>Calendar feed</h3>
+                <div id="calendarFeedBody"><p class="text-sm text-slate-500">Loading…</p></div>
+              </div>
                   </div>
                   <div class="space-y-6">
                     <div class="card p-6 text-center flex flex-col items-center">
@@ -8472,6 +8476,95 @@
       if (!window.pb || !pb.authStore){ setTimeout(init, 400); return; }
       renderStatus();
       try { if (typeof pb.authStore.onChange === 'function') pb.authStore.onChange(renderStatus); } catch(e){}
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+  })();
+</script>
+
+<script>
+  // Calendar feed (read-only ICS subscription). Works on production AND self-host
+  // — not hostname-gated. Opt-in: a secret per-user token authorizes the feed URL.
+  // If the PocketBase hook isn't deployed yet, the status call fails and the card
+  // stays hidden, so nothing breaks on an un-upgraded backend.
+  (function () {
+    function el(id) { return document.getElementById(id); }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    async function api(path, body) { return await pb.send(path, { method: 'POST', body: body || {} }); }
+
+    function feedUrls(token) {
+      var base = (window.pb && pb.baseUrl ? pb.baseUrl : location.origin).replace(/\/+$/, '');
+      var https = base + '/api/jdin/calendar/' + encodeURIComponent(token) + '.ics';
+      return { https: https, webcal: https.replace(/^https?:/i, 'webcal:') };
+    }
+
+    var card = null, body = null;
+    function setBody(h) { if (body) body.innerHTML = h; }
+
+    async function renderStatus() {
+      card = el('calendarFeedCard'); body = el('calendarFeedBody');
+      if (!card || !body) return;
+      if (!window.pb || !pb.authStore || !pb.authStore.isValid) { card.style.display = 'none'; return; }
+      var st;
+      try { st = await api('/api/jdin/calendar/status'); }
+      catch (e) { card.style.display = 'none'; return; } // hook not deployed / offline → stay hidden
+      card.style.display = 'block';
+      if (st && st.enabled && st.token) renderEnabled(st.token);
+      else renderDisabled();
+    }
+
+    function renderDisabled() {
+      setBody(
+        '<p class="text-sm text-slate-500 mb-4">Subscribe to your tasks and reminders in <b>Google Calendar</b>, <b>Apple Calendar</b>, or <b>Outlook</b>. One-way and read-only — your calendar shows what’s due; nothing is written back.</p>' +
+        '<button type="button" id="calFeedEnableBtn" class="btn-primary"><i class="fa-regular fa-calendar-plus mr-1"></i> Enable calendar feed</button>'
+      );
+      var b = el('calFeedEnableBtn');
+      if (b) b.onclick = async function () { b.disabled = true; b.textContent = 'Enabling…'; try { var r = await api('/api/jdin/calendar/enable'); renderEnabled(r.token); } catch (e) { b.disabled = false; b.textContent = 'Enable calendar feed'; } };
+    }
+
+    function renderEnabled(token) {
+      var u = feedUrls(token);
+      setBody(
+        '<div class="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 font-semibold mb-3"><i class="fa-solid fa-circle-check"></i> Calendar feed is on</div>' +
+        '<label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Subscription link</label>' +
+        '<div class="flex gap-2 mb-2"><input id="calFeedUrl" type="text" readonly value="' + esc(u.https) + '" class="ui-input text-xs flex-1" onclick="this.select()"><button type="button" id="calFeedCopy" class="btn-secondary shrink-0"><i class="fa-regular fa-copy mr-1"></i>Copy</button></div>' +
+        '<div class="flex flex-wrap gap-2 mb-4"><a href="' + esc(u.webcal) + '" class="btn-primary !py-2 !px-4 text-sm"><i class="fa-solid fa-calendar-plus mr-1"></i> Subscribe now</a></div>' +
+        '<details class="mb-4"><summary class="text-sm font-semibold text-indigo-600 dark:text-indigo-400 cursor-pointer">How to add it</summary>' +
+          '<ul class="mt-2 text-xs text-slate-500 space-y-1.5 list-disc pl-5">' +
+            '<li><b>Google Calendar:</b> Other calendars → + → <b>From URL</b> → paste the link.</li>' +
+            '<li><b>Apple Calendar:</b> File → <b>New Calendar Subscription</b> → paste the link.</li>' +
+            '<li><b>Outlook:</b> Add calendar → <b>Subscribe from web</b> → paste the link.</li>' +
+          '</ul><p class="mt-2 text-xs text-slate-400">Calendars refresh on their own schedule (often every few hours), not instantly.</p></details>' +
+        '<div class="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/20 p-3 mb-4"><p class="text-xs text-amber-700 dark:text-amber-300"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Anyone with this link can see your task titles and dates. Keep it private. Lost it or shared by mistake? <b>Regenerate</b> to invalidate the old link.</p></div>' +
+        '<div class="flex flex-wrap gap-2"><button type="button" id="calFeedRegen" class="btn-secondary text-sm"><i class="fa-solid fa-rotate mr-1"></i>Regenerate link</button><button type="button" id="calFeedOff" class="btn-secondary text-sm !text-rose-600 !border-rose-200 dark:!border-rose-900/30">Turn off</button></div>'
+      );
+      var copy = el('calFeedCopy');
+      if (copy) copy.onclick = function () {
+        var inp = el('calFeedUrl');
+        var done = function () { copy.innerHTML = '<i class="fa-solid fa-check mr-1"></i>Copied'; setTimeout(function () { copy.innerHTML = '<i class="fa-regular fa-copy mr-1"></i>Copy'; }, 1500); };
+        try { navigator.clipboard.writeText(u.https).then(done, function () { if (inp) { inp.select(); document.execCommand('copy'); } done(); }); }
+        catch (e) { if (inp) { inp.select(); try { document.execCommand('copy'); } catch (_) {} } done(); }
+      };
+      var regen = el('calFeedRegen');
+      if (regen) regen.onclick = async function () {
+        if (!(await (window.customConfirm ? window.customConfirm('Regenerate link', 'The current subscription link will stop working. Calendars will need the new link. Continue?') : Promise.resolve(confirm('Regenerate the link? The current one will stop working.'))))) return;
+        regen.disabled = true;
+        try { var r = await api('/api/jdin/calendar/regenerate'); renderEnabled(r.token); if (window.toast) toast('New link generated', 'Update your calendar subscription with the new link.', 'success'); }
+        catch (e) { regen.disabled = false; }
+      };
+      var off = el('calFeedOff');
+      if (off) off.onclick = async function () {
+        if (!(await (window.customConfirm ? window.customConfirm('Turn off calendar feed', 'The subscription link will stop working. You can re-enable any time (a new link is issued). Continue?') : Promise.resolve(confirm('Turn off the calendar feed?'))))) return;
+        off.disabled = true;
+        try { await api('/api/jdin/calendar/disable'); renderDisabled(); }
+        catch (e) { off.disabled = false; }
+      };
+    }
+
+    function init() {
+      if (!window.pb || !pb.authStore) { setTimeout(init, 400); return; }
+      renderStatus();
+      try { if (typeof pb.authStore.onChange === 'function') pb.authStore.onChange(renderStatus); } catch (e) {}
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
