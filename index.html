@@ -1470,6 +1470,7 @@
               <label class="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block mb-2"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Smart Input</label>
               <div class="flex gap-2">
                 <input id="smartAddInput" type="text" class="ui-input flex-1 !bg-white dark:!bg-slate-900" placeholder="e.g., 'Buy groceries tomorrow at 5pm'" />
+                <button type="button" id="smartAddMic" class="btn-secondary shrink-0 !px-4" style="display:none;" aria-label="Add a task by voice" aria-pressed="false" title="Speak your task"><i class="fa-solid fa-microphone"></i></button>
                 <button type="submit" class="btn-primary shrink-0 px-4">Add</button>
               </div>
               <p class="text-[10px] text-slate-500 mt-2 font-medium">Understands "today", "tomorrow", "next monday", "at 3pm", etc.</p>
@@ -8565,6 +8566,85 @@
       if (!window.pb || !pb.authStore) { setTimeout(init, 400); return; }
       renderStatus();
       try { if (typeof pb.authStore.onChange === 'function') pb.authStore.onChange(renderStatus); } catch (e) {}
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+  })();
+</script>
+
+<style>
+  @keyframes jdinMicPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(244,63,94,.45); } 50% { box-shadow: 0 0 0 7px rgba(244,63,94,0); } }
+  .jdin-mic-live { color: #f43f5e !important; border-color: rgba(244,63,94,.45) !important; animation: jdinMicPulse 1.25s ease-in-out infinite; }
+</style>
+<script>
+  // Voice-to-task: the browser's built-in Web Speech API dictates into the
+  // smart-add box, then the SAME natural-language parser the "Add" button uses
+  // turns it into a task. Progressive enhancement — the mic only appears where
+  // SpeechRecognition exists (Chrome/Edge/Safari desktop, Android Chrome; not
+  // Firefox, unreliable in iOS PWAs). No backend, no API key, no AI: the browser
+  // does the transcription.
+  (function () {
+    function getSR() { return window.SpeechRecognition || window.webkitSpeechRecognition; }
+    function init() {
+      var mic = document.getElementById('smartAddMic');
+      var input = document.getElementById('smartAddInput');
+      if (!mic || !input) return;
+      if (!getSR()) return;               // unsupported browser → mic stays hidden
+      mic.style.display = '';
+
+      var rec = null, listening = false, base = '', finalText = '';
+      function setLive(on) {
+        listening = on;
+        mic.classList.toggle('jdin-mic-live', on);
+        mic.setAttribute('aria-pressed', on ? 'true' : 'false');
+        mic.title = on ? 'Listening… click to stop' : 'Speak your task';
+      }
+      function stop() { try { if (rec) rec.stop(); } catch (_) {} }
+
+      mic.addEventListener('click', function () {
+        if (listening) { stop(); return; }
+        var SR = getSR(); if (!SR) return;
+        try { rec = new SR(); } catch (_) { return; }
+        try { rec.lang = navigator.language || 'en-US'; } catch (_) {}
+        rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+        base = (input.value || '').trim(); finalText = '';
+        rec.onstart = function () { setLive(true); };
+        rec.onresult = function (e) {
+          var interim = '', fin = '';
+          for (var i = e.resultIndex; i < e.results.length; i++) {
+            var tr = e.results[i][0].transcript;
+            if (e.results[i].isFinal) fin += tr; else interim += tr;
+          }
+          if (fin) finalText += fin;
+          input.value = ((base ? base + ' ' : '') + finalText + interim).replace(/\s+/g, ' ').trim();
+        };
+        rec.onerror = function (e) {
+          setLive(false);
+          var err = e && e.error;
+          if ((err === 'not-allowed' || err === 'service-not-allowed') && window.toast) {
+            toast('Microphone blocked', 'Allow microphone access to add tasks by voice.', 'error');
+          }
+        };
+        rec.onend = function () {
+          setLive(false);
+          var spoken = finalText.trim();
+          var boxText = (input.value || '').trim();
+          // A finalized phrase → create the task exactly like pressing "Add".
+          if (spoken && typeof window.createTaskFromText === 'function') {
+            input.value = '';
+            Promise.resolve(window.createTaskFromText(boxText || spoken)).then(function (it) {
+              if (it && window.toast) toast('Task added', '“' + it.title + '” added by voice.', 'success');
+              else if (!it) input.value = boxText || spoken; // save failed → don't lose their words
+            }).catch(function () { input.value = boxText || spoken; });
+          } else if (boxText) {
+            input.focus();               // only interim heard → let them review + Add
+          }
+        };
+        try { rec.start(); } catch (_) { setLive(false); }
+      });
+
+      // Never leave the mic hot when the tab/app is backgrounded.
+      document.addEventListener('visibilitychange', function () { if (document.hidden) stop(); });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
