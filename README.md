@@ -24,9 +24,11 @@ container on Proxmox with **one command**, or run it on any Debian box.
 ## ✨ Features
 
 - ✅ **Tasks** — priorities, due dates & times, projects, attachments, comments
+- 🎙️ **Voice & natural-language add** — type *or speak* "Buy milk tomorrow 5pm" and it becomes a dated task (voice where the browser supports it)
 - 📁 **Projects** — progress tracking, statuses, per-project task views
 - 🔁 **Habits** — daily check-ins, streaks, and "starts soon" reminder emails
 - 📅 **Calendar** & 🎯 **Focus mode** to plan and get heads-down
+- 📆 **Calendar feed** — subscribe your tasks & reminders in Google, Apple or Outlook Calendar (one-way, read-only ICS)
 - 📧 **Weekly email report** — a Sunday summary of what you got done
 - 🔐 **Two-factor authentication** — authenticator-app (TOTP) codes: iPhone
   Passwords, Microsoft Authenticator, Duo, Google Authenticator, Authy…
