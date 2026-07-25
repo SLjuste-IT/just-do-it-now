@@ -5186,6 +5186,9 @@
     // permanently block the next occurrence.
     delete clone._lastGeneratedCompletionAt;
     delete clone._lastGeneratedId;
+    // The parent may have been flagged as "due soon" notified; a fresh occurrence
+    // with a new due date must not inherit that flag or it would never alert.
+    delete clone.notifiedAt;
     clone.createdAt = new Date().toISOString();
     clone.dueDate = toDateInput(nextDate);
     clone.dueTime = task.dueTime || toTimeInput(nextDate) || '';
@@ -6311,7 +6314,7 @@
     for (const t of state.todos) {
       if (!t.dueDate || t.completed) continue; // only move incomplete, dated tasks
       const newDue = eff(t.id);
-      if (newDue && newDue > t.dueDate) { shifts.push({ task: t, from: t.dueDate, to: newDue }); t.dueDate = newDue; }
+      if (newDue && newDue > t.dueDate) { shifts.push({ task: t, from: t.dueDate, to: newDue }); t.dueDate = newDue; delete t.notifiedAt; }
     }
     return shifts;
   }
@@ -7145,11 +7148,15 @@
     const prevStatus = getTaskStatus(task);
     const prevCollab = (task.collaborators || []).slice();
     const prevDue = task.dueDate || '';
+    const prevDueTime = task.dueTime || '';
 
     const form = getTaskFormData('editTask');
     task.title = document.getElementById('editTaskTitle')?.value.trim() || form.title || 'Untitled Task';
     task.dueDate = document.getElementById('editTaskDate')?.value || '';
     task.dueTime = document.getElementById('editTaskTime')?.value || '';
+    // A changed due date/time invalidates any prior "due soon" alert — clear the
+    // flag so dueSoonCheck can notify again for the new time (matches snooze).
+    if (task.dueDate !== prevDue || (task.dueTime || '') !== prevDueTime) delete task.notifiedAt;
     task.priority = document.getElementById('editTaskPriority')?.value || 'medium';
     task.categoryId = document.getElementById('editTaskCategory')?.value || '';
     task.projectId = document.getElementById('editTaskProject')?.value || '';
@@ -7173,6 +7180,8 @@
       if (rDate) {
         const existing = state.reminders.find(r => r.linkType === 'todo' && r.linkId === id);
         if (existing) {
+          // Rescheduling clears the stale "already alerted" flag so it can fire again.
+          if (existing.date !== rDate || (existing.time || '') !== rTime) delete existing.notifiedAt;
           existing.date = rDate; existing.time = rTime;
           if (pb.authStore.isValid) {
             try { await pb.collection('alerts').update(existing.id, alertToPBPayload(existing)); } catch (err) { if (err?.status !== 404) showPBError(err); }
@@ -7688,8 +7697,10 @@
     if (startTime) project.roadmapStartTime = startTime;
     roadmapChain(projectId).chain.forEach(t => {
       if (t.completed) return;                 // don't rewrite history
+      const _prevD = t.dueDate, _prevT = t.dueTime || '';
       t.dueDate = project.roadmapStart;
       if (project.roadmapStartTime) t.dueTime = project.roadmapStartTime;
+      if (t.dueDate !== _prevD || (t.dueTime || '') !== _prevT) delete t.notifiedAt; // re-anchored → allow a fresh due-soon alert
     });
     await propagateAndPersistShifts(null);
     await save(); renderEverything();
