@@ -351,6 +351,12 @@
       border: 1px solid var(--line-strong); color: var(--ink); opacity: 0.85;
     }
     .rm-pill.is-current { border-color: var(--accent); color: var(--accent); opacity: 1; }
+    /* The dot doubles as a one-click complete toggle on done/current steps. */
+    button.rm-dot { padding: 0; font: inherit; font-size: 0.68rem; font-weight: 800;
+      cursor: pointer; -webkit-appearance: none; appearance: none;
+      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease; }
+    button.rm-dot:hover { transform: scale(1.15); }
+    .rm-step.is-current button.rm-dot:hover { background: #10b981; border-color: #10b981; color: #fff; }
 
     /* ══ Brand palette ════════════════════════════════════════════════════════
        The markup carries ~240 hardcoded indigo/violet utility classes and the
@@ -2960,11 +2966,65 @@
     };
 
     /* --- HABITS --- */
+    // ── Mirror habits into the PocketBase `habits` collection ────────────────
+    // Habits live in the users.appData blob (the real source of truth, which the
+    // weekly-report and habit-alert hooks read); these calls keep a per-row mirror
+    // in the `habits` collection truthful so the data is visible there too. The
+    // local id is a valid 15-char PB id, so it doubles as the record id (local ==
+    // remote). All guarded on auth and error-swallowed — the app never reads back
+    // from this collection, so a mirror hiccup can't affect the UI or lose data.
+    function habitToPBPayload(habit, includeUser = false) {
+      const payload = {
+        title: habit?.title || 'Untitled Habit',
+        color: habit?.color || '#588157',
+        history: Array.isArray(habit?.history) ? habit.history : []
+      };
+      if (includeUser && pb?.authStore?.model?.id) payload.user = [pb.authStore.model.id];
+      return payload;
+    }
+    async function pbCreateHabit(habit) {
+      if (!pb.authStore.isValid || !habit?.id) return;
+      try { await pb.collection('habits').create({ id: habit.id, ...habitToPBPayload(habit, true) }); }
+      catch (err) { if (err?.status !== 400 && err?.status !== 404) console.warn('habits mirror: create failed', err); }
+    }
+    async function pbUpdateHabit(habit) {
+      if (!pb.authStore.isValid || !habit?.id) return;
+      try { await pb.collection('habits').update(habit.id, habitToPBPayload(habit)); }
+      catch (err) {
+        // No row yet (habit predates the mirror) → create it so it back-fills.
+        if (err?.status === 404) return pbCreateHabit(habit);
+        console.warn('habits mirror: update failed', err);
+      }
+    }
+    async function pbDeleteHabit(id) {
+      if (!pb.authStore.isValid || !id) return;
+      try { await pb.collection('habits').delete(id); }
+      catch (err) { if (err?.status !== 404) console.warn('habits mirror: delete failed', err); }
+    }
+    // One-time back-fill: create rows for any habits that exist only in appData
+    // (i.e. were created before this mirror existed). One list read, then create
+    // just the missing ones. Fired once on boot when signed in.
+    async function ensureHabitsMirrored() {
+      if (!pb.authStore.isValid) return;
+      const habits = (window.__JDIN_STATE__ || window.state)?.habits || [];
+      if (!habits.length) return;
+      let existing;
+      try {
+        const rows = await pb.collection('habits').getFullList({ fields: 'id' });
+        existing = new Set(rows.map(r => r.id));
+      } catch (err) { console.warn('habits mirror: back-fill list failed', err); return; }
+      for (const h of habits) {
+        if (h && h.id && !existing.has(h.id)) await pbCreateHabit(h);
+      }
+    }
+
     async function addHabitFromForm() {
       const title = $('#habitName').value.trim();
       if (!title) { toast('Required', 'Habit name cannot be empty', 'warning'); return; }
       const alertTime = $('#habitAlert')?.value || '';
-      state.habits.unshift({ id: generatePBId(), title, color: $('#habitColor').value || '#588157', alertTime, history: [], createdAt: new Date().toISOString() });
+      const habit = { id: generatePBId(), title, color: $('#habitColor').value || '#588157', alertTime, history: [], createdAt: new Date().toISOString() };
+      state.habits.unshift(habit);
+      pbCreateHabit(habit);
       $('#habitName').value = ''; if ($('#habitAlert')) $('#habitAlert').value = '';
       if (alertTime && 'Notification' in window && Notification.permission === 'default') { try { window.requestNotificationPermission(); } catch (_) {} }
       await save(); renderHabits();
@@ -3000,11 +3060,13 @@
         const lastSevenComplete = Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return toDateInput(d);}).every(d=>habit.history.includes(d));
         if (lastSevenComplete) { playSound('milestone'); celebrateSpark('Full Week Complete! 🔥'); }
       }
+      pbUpdateHabit(habit);
       await save(); renderHabits();
     };
 
     window.deleteHabit = async function(id) {
       if(!(await customConfirm('Delete Habit','Are you sure you want to delete this habit and its history?'))) return;
+      pbDeleteHabit(id);
       state.habits = state.habits.filter(h => h.id !== id); await save(); renderHabits();
     }
 
@@ -3974,7 +4036,8 @@
         state.themePreference = userTheme; safeLS.setItem(THEME_KEY, userTheme); applyEffectiveTheme();
         if (pb.authStore.model.languagePreference) { state.language = pb.authStore.model.languagePreference; safeLS.setItem(LANGUAGE_KEY, state.language); applyLanguage(state.language); }
         forceEnterApp();
-      } 
+        ensureHabitsMirrored(); // back-fill any habits that predate the habits-collection mirror
+      }
       else if (safeLS.getItem('jdin_has_started') === 'true') { forceEnterApp(); }
 
       // If the user arrived from an email verification / password-reset link,
@@ -5809,6 +5872,28 @@
     renderEverything();
   }
 
+  // ── Keep the PocketBase `tasks` mirror in step with the local Trash ──────────
+  // The real source of truth is the `appData` JSON blob on the users record, but
+  // the per-row `tasks` mirror should still reflect Trash so "Delete forever"
+  // actually clears server-side data and `tasks.deleted_at` stays truthful.
+  // All three guard on auth and swallow 404s (a task created offline may have no
+  // mirror row yet). Fire-and-forget: the UI is driven by local state + save().
+  async function pbTrashTask(id) {
+    if (!pb.authStore.isValid) return;
+    try { await pb.collection('tasks').update(id, { deleted_at: new Date().toISOString() }); }
+    catch (err) { if (err?.status !== 404) console.warn('tasks mirror: trash failed', err); }
+  }
+  async function pbRestoreTask(id) {
+    if (!pb.authStore.isValid) return;
+    try { await pb.collection('tasks').update(id, { deleted_at: '' }); }
+    catch (err) { if (err?.status !== 404) console.warn('tasks mirror: restore failed', err); }
+  }
+  async function pbDeleteTaskForever(id) {
+    if (!pb.authStore.isValid) return;
+    try { await pb.collection('tasks').delete(id); }
+    catch (err) { if (err?.status !== 404) console.warn('tasks mirror: delete failed', err); }
+  }
+
   async function bulkTrashTodos() {
     const ids = state.selectedTodoIds.filter(id => state.todos.some(t => t.id === id));
     if (!ids.length) return toast('Bulk Action', 'No tasks selected.', 'warning');
@@ -5817,6 +5902,7 @@
     const moving = state.todos.filter(t => idSet.has(t.id));
     const now = new Date().toISOString();
     moving.forEach(item => state.trash.unshift({ ...normalizeTask(deepClone(item)), deletedAt: now }));
+    moving.forEach(item => pbTrashTask(item.id));
     state.todos = state.todos.filter(t => !idSet.has(t.id));
     state.selectedTodoIds = [];
     await save();
@@ -5834,6 +5920,7 @@
     const idSet = new Set(ids);
     const restoring = state.trash.filter(t => idSet.has(t.id));
     restoring.forEach(item => { const r = { ...normalizeTask(deepClone(item)) }; delete r.deletedAt; state.todos.unshift(r); });
+    restoring.forEach(item => pbRestoreTask(item.id));
     state.trash = state.trash.filter(t => !idSet.has(t.id));
     state.selectedTodoIds = [];
     await save();
@@ -5850,6 +5937,7 @@
     }
     if (!await customConfirm('Delete Forever', `Permanently delete ${ids.length} task${ids.length > 1 ? 's' : ''}? This cannot be undone.`)) return;
     const idSet = new Set(ids);
+    ids.forEach(id => pbDeleteTaskForever(id));
     state.trash = state.trash.filter(t => !idSet.has(t.id));
     state.selectedTodoIds = state.selectedTodoIds.filter(id => !idSet.has(id));
     await save();
@@ -5865,6 +5953,7 @@
     state.todos = state.todos.filter(t => t.id !== id);
     state.trash.unshift({ ...normalizeTask(deepClone(item)), deletedAt: new Date().toISOString() });
     state.selectedTodoIds = state.selectedTodoIds.filter(v => v !== id);
+    pbTrashTask(id);
     await save();
     renderEverything();
   }
@@ -5878,6 +5967,7 @@
     delete item.deletedAt;
     state.todos.unshift(normalizeTask(item));
     state.selectedTodoIds = state.selectedTodoIds.filter(v => v !== id);
+    pbRestoreTask(id);
     await save();
     renderEverything();
   }
@@ -5886,6 +5976,7 @@
     const item = state.trash.find(t => t.id === id);
     if (!item) return;
     if (!await customConfirm('Delete Forever', `Permanently delete "${item.title}"?`)) return;
+    pbDeleteTaskForever(id);
     state.trash = state.trash.filter(t => t.id !== id);
     state.selectedTodoIds = state.selectedTodoIds.filter(v => v !== id);
     await save();
@@ -5895,6 +5986,7 @@
   async function emptyTrash() {
     if (!state.trash.length) return toast('Trash Empty', 'Nothing to clear.', 'info');
     if (!await customConfirm('Empty Trash', 'Delete every item in trash permanently?')) return;
+    state.trash.forEach(item => pbDeleteTaskForever(item.id));
     state.trash = [];
     state.selectedTodoIds = [];
     await save();
@@ -7762,10 +7854,9 @@
     const now = new Date().toISOString();
     for (const step of steps) {
       state.trash.unshift({ ...normalizeTask(deepClone(step)), deletedAt: now });
-      if (pb.authStore.isValid) {
-        try { await pb.collection('tasks').delete(step.id); }
-        catch (err) { if (err?.status !== 404) console.warn('roadmap step delete failed', err); }
-      }
+      // Soft-mark in the mirror (not hard-delete) so restoring the step from Trash
+      // brings its cloud row back intact — same lifecycle as any other trashed task.
+      pbTrashTask(step.id);
     }
     const stepIds = new Set(steps.map(s => s.id));
     state.todos = state.todos.filter(t => !stepIds.has(t.id));
@@ -7821,8 +7912,16 @@
       const cls = isDone ? 'is-done' : isCurrent ? 'is-current' : 'is-locked';
       const dur = Number(t.durationDays);
       const durText = Number.isFinite(dur) ? `${dur} day${dur === 1 ? '' : 's'}` : '';
+      // The dot is a one-click complete toggle for done/current steps — click to
+      // mark this step done (advancing the roadmap) or reopen it. Locked steps stay
+      // non-interactive until their prerequisite is done; their card still opens the
+      // detail modal. stopPropagation keeps the dot click off the card's modal.
+      const dotInner = isDone ? '<i class="fa-solid fa-check"></i>' : (i + 1);
+      const dot = (isDone || isCurrent)
+        ? `<button type="button" class="rm-dot" aria-label="${isDone ? 'Mark step not done' : 'Mark step done'}" title="${isDone ? 'Mark not done' : 'Mark done'}" onclick="event.stopPropagation(); toggleTodo('${t.id}')">${dotInner}</button>`
+        : `<div class="rm-dot">${dotInner}</div>`;
       return `<div class="rm-step ${cls}">
-        <div class="rm-dot">${isDone ? '<i class="fa-solid fa-check"></i>' : (i + 1)}</div>
+        ${dot}
         <div class="rm-card" onclick="openTaskModal('${t.id}')">
           <div class="flex items-center justify-between gap-2">
             <span class="rm-title font-bold text-sm truncate text-slate-900 dark:text-white">${escapeHtml(t.title || 'Untitled')}</span>
