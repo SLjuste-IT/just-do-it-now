@@ -33,16 +33,41 @@ const BLOCKED_PATHS = [
   /\.(bak|log|toml|md)$/i,
 ];
 
+// Baseline security headers for served pages/assets. Kept conservative on
+// purpose: a full script/style/connect CSP would have to enumerate every CDN,
+// the PocketBase origin, hCaptcha, the weather + web3forms endpoints, and allow
+// 'unsafe-inline' for the app's many inline scripts/handlers — easy to get wrong
+// and break auth. So we ship the low-risk, high-value headers plus a CSP limited
+// to frame-ancestors (clickjacking) which never affects resource loading.
+function withSecurityHeaders(resp, pathname) {
+  const headers = new Headers(resp.headers);
+  headers.set('X-Content-Type-Options', 'nosniff');
+  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  headers.set('Permissions-Policy', 'camera=(), payment=(), usb=(), magnetometer=(), gyroscope=()');
+  headers.set('Strict-Transport-Security', 'max-age=31536000');
+  // Clickjacking protection — but NOT on the embeddable demo widget, which is
+  // deliberately meant to be iframed on third-party sites.
+  if (!/^\/demo-embed\.html$/i.test(pathname)) {
+    headers.set('X-Frame-Options', 'SAMEORIGIN');
+    headers.set('Content-Security-Policy', "frame-ancestors 'self'");
+  }
+  return new Response(resp.body, {
+    status: resp.status,
+    statusText: resp.statusText,
+    headers,
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     // ---- Deny non-public paths ------------------------------------------
     if (BLOCKED_PATHS.some((re) => re.test(url.pathname))) {
-      return new Response('Not found', {
+      return withSecurityHeaders(new Response('Not found', {
         status: 404,
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      });
+      }), url.pathname);
     }
 
     // ---- PocketBase API proxy -------------------------------------------
@@ -79,6 +104,6 @@ export default {
     }
 
     // ---- Static site (index.html, welcome-hero.png, …) ------------------
-    return env.ASSETS.fetch(request);
+    return withSecurityHeaders(await env.ASSETS.fetch(request), url.pathname);
   },
 };
