@@ -2933,17 +2933,17 @@
       if (window.isRoadmapProject && window.isRoadmapProject(item) && typeof window.deleteRoadmap === 'function') {
         return window.deleteRoadmap(id);
       }
-      if(!(await customConfirm('Delete Project',`Delete project "${item.name}"? Tasks inside will be kept but unassigned.`))) return;
-      if(pb.authStore.isValid) { try { await pb.collection('projects').delete(id); } catch(e) { if (e?.status !== 404) showPBError(e); } }
+      if(!(await customConfirm('Move to Trash',`Move project "${item.name}" to Trash? Its tasks stay in your list, and you can restore the project later.`))) return;
+      // Soft-delete: the project shell goes to Trash (restorable) while its tasks,
+      // child roadmaps and reminder links stay intact so a restore is lossless. The
+      // destructive cleanup (unassigning tasks, dropping the PB row) only runs on
+      // "Delete forever" — see _finalizeProjectDeletion.
+      state.trash.unshift({ ...JSON.parse(JSON.stringify(item)), _kind: 'project', deletedAt: new Date().toISOString() });
       state.projects=state.projects.filter(p=>p.id!==id);
-      // Child roadmaps outlive their parent — drop the dead link so they return to
-      // the top level with a clean "No project" instead of a dangling id.
-      state.projects.forEach(p=>{ if(p.parentProjectId===id) p.parentProjectId=''; });
-      state.todos.forEach(t=>{ if(t.projectId===id) { t.projectId=''; if(pb.authStore.isValid) pb.collection('tasks').update(t.id, { project: [] }).catch(e=>{ if (e?.status !== 404) showPBError(e); }); } });
-      state.reminders.forEach(r=>{ if(r.linkType==='project'&&r.linkId===id) r.linkType='custom'; });
       if(state.selectedProjectId===id) state.selectedProjectId=null;
-      await save(); renderProjects(); renderSelectedProject(); renderSummary();
-      toast('Deleted', `Project "${item.name}" has been deleted.`, 'success');
+      await save();
+      if (window.renderEverything) window.renderEverything(); else { renderProjects(); renderSelectedProject(); renderSummary(); }
+      toast('Moved to Trash', `Project "${item.name}" moved to Trash.`, 'success');
     };
 
     async function addReminderFromForm() {
@@ -3004,6 +3004,23 @@
       try { await pb.collection('habits').delete(id); }
       catch (err) { if (err?.status !== 404) console.warn('habits mirror: delete failed', err); }
     }
+    // Soft-delete / restore the habit mirror row (the `habits` collection carries a
+    // `deleted_at` field). Trashing a habit sets it; restoring clears it; "delete
+    // forever" hard-deletes via pbDeleteHabit. Exposed on window so the Trash
+    // dispatchers (defined in the outer scope) can drive the mirror too.
+    async function pbTrashHabit(id) {
+      if (!pb.authStore.isValid || !id) return;
+      try { await pb.collection('habits').update(id, { deleted_at: new Date().toISOString() }); }
+      catch (err) { if (err?.status !== 404) console.warn('habits mirror: trash failed', err); }
+    }
+    async function pbRestoreHabit(habit) {
+      if (!pb.authStore.isValid || !habit?.id) return;
+      try { await pb.collection('habits').update(habit.id, { deleted_at: '' }); }
+      catch (err) { if (err?.status === 404) return pbCreateHabit(habit); console.warn('habits mirror: restore failed', err); }
+    }
+    window.pbTrashHabit = pbTrashHabit;
+    window.pbRestoreHabit = pbRestoreHabit;
+    window.pbDeleteHabitRow = pbDeleteHabit;
     // One-time back-fill: create rows for any habits that exist only in appData
     // (i.e. were created before this mirror existed). One list read, then create
     // just the missing ones. Fired once on boot when signed in.
@@ -3068,9 +3085,14 @@
     };
 
     window.deleteHabit = async function(id) {
-      if(!(await customConfirm('Delete Habit','Are you sure you want to delete this habit and its history?'))) return;
-      pbDeleteHabit(id);
-      state.habits = state.habits.filter(h => h.id !== id); await save(); renderHabits();
+      const habit = state.habits.find(h => h.id === id); if (!habit) return;
+      if(!(await customConfirm('Move to Trash','Move this habit to Trash? Its history is kept and you can restore it later.'))) return;
+      state.trash.unshift({ ...JSON.parse(JSON.stringify(habit)), _kind: 'habit', deletedAt: new Date().toISOString() });
+      state.habits = state.habits.filter(h => h.id !== id);
+      pbTrashHabit(id);
+      await save();
+      if (window.renderEverything) window.renderEverything(); else renderHabits();
+      toast('Moved to Trash', 'Habit moved to Trash.', 'success');
     }
 
     function calculateStreak(history) {
@@ -4779,6 +4801,24 @@
     return task;
   }
 
+  // Trash now holds tasks, habits AND projects/roadmaps (tagged `_kind`). Normalize
+  // each entry against its own kind so a habit/project isn't mangled by the task
+  // normalizer. An untagged entry is a legacy task.
+  function normalizeTrashEntry(e) {
+    if (!e || typeof e !== 'object') return e;
+    const kind = e._kind || 'task';
+    if (kind === 'task') return normalizeTask(e);
+    if (!safeIdOk(e.id)) e.id = generatePBId();
+    if (kind === 'habit') {
+      if (!Array.isArray(e.history)) e.history = [];
+      e.color = safeHex(e.color, '#588157');
+    } else if (kind === 'project') {
+      if (e.priority === 'urgent') e.priority = 'high';
+      e.color = safeHex(e.color, '#3f888f');
+    }
+    return e;
+  }
+
   function normalizeAllState() {
     const state = window.__JDIN_STATE__ || window.state;
     if (!state) return;
@@ -4806,7 +4846,7 @@
     if (!Array.isArray(state.tombstones)) state.tombstones = [];
     if (!Array.isArray(state.selectedTodoIds)) state.selectedTodoIds = [];
     state.todos = state.todos.map(normalizeTask);
-    state.trash = state.trash.map(normalizeTask);
+    state.trash = state.trash.map(normalizeTrashEntry);
     state.selectedTodoIds = state.selectedTodoIds.filter(id => state.todos.some(t => t.id === id) || state.trash.some(t => t.id === id));
   }
 
@@ -5018,11 +5058,18 @@
     return sorted;
   }
 
+  // A trashed entry's display name: tasks/habits use `title`, projects use `name`.
+  function _trashItemTitle(t) {
+    if (!t) return '';
+    return ((t._kind || 'task') === 'project') ? (t.name || t.title || '') : (t.title || t.name || '');
+  }
+
   function visibleTrashItems() {
     const q = (state.search || '').trim().toLowerCase();
     let items = state.trash.slice();
     if (q) {
       items = items.filter(t => {
+        if ((t._kind || 'task') !== 'task') return _trashItemTitle(t).toLowerCase().includes(q);
         const project = state.projects.find(p => p.id === t.projectId)?.name || '';
         const tagText = (t.tags || []).join(' ');
         return [t.title, t.dueDate, t.priority, project, tagText].join(' ').toLowerCase().includes(q);
@@ -5032,7 +5079,7 @@
   }
 
   function getTaskById(id) {
-    return state.todos.find(t => t.id === id) || state.trash.find(t => t.id === id) || null;
+    return state.todos.find(t => t.id === id) || state.trash.find(t => t.id === id && (t._kind || 'task') === 'task') || null;
   }
 
   function selectTaskId(id, checked) {
@@ -5113,16 +5160,34 @@
     </div>`;
   }
 
-  function renderTrashCard(todo) {
-    const deletedAt = todo.deletedAt ? formatDate(todo.deletedAt.split('T')[0], todo.deletedAt.includes('T') ? todo.deletedAt.slice(11, 16) : '') : 'Unknown';
-    const tags = renderTags(todo);
+  // Icon + label for a trashed entry's kind, so the card tells tasks, habits,
+  // projects and roadmaps apart at a glance.
+  function _trashKindMeta(item) {
+    const kind = item._kind || 'task';
+    if (kind === 'habit') return { label: 'Habit', icon: 'fa-repeat', accent: 'text-emerald-600 dark:text-emerald-400' };
+    if (kind === 'project') return item.isRoadmap
+      ? { label: 'Roadmap', icon: 'fa-route', accent: 'text-indigo-600 dark:text-indigo-400' }
+      : { label: 'Project', icon: 'fa-folder', accent: 'text-sky-600 dark:text-sky-400' };
+    return { label: 'Task', icon: 'fa-list-check', accent: 'text-rose-600 dark:text-rose-400' };
+  }
+
+  function renderTrashCard(item) {
+    const kind = item._kind || 'task';
+    const meta = _trashKindMeta(item);
+    const title = _trashItemTitle(item) || 'Untitled';
+    const deletedAt = item.deletedAt ? formatDate(item.deletedAt.split('T')[0], item.deletedAt.includes('T') ? item.deletedAt.slice(11, 16) : '') : 'Unknown';
+    const tags = kind === 'task' ? renderTags(item) : '';
+    const badge = `<span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${meta.accent}"><i class="fa-solid ${meta.icon}"></i>${meta.label}</span>`;
     return `<div class="p-3 sm:p-4 rounded-xl border border-rose-200 dark:border-rose-900/30 bg-rose-50/60 dark:bg-rose-950/20 shadow-sm flex items-start gap-3">
       <div class="mt-0.5 w-5 h-5 rounded border border-rose-300 bg-rose-100 text-rose-500 grid place-items-center shrink-0"><i class="fa-solid fa-trash text-[10px]"></i></div>
       <div class="min-w-0 flex-1">
         <div class="flex items-start justify-between gap-2">
-          <div class="text-sm font-bold text-slate-900 dark:text-white break-words">${escapeHtml(todo.title)}</div>
-          <label class="cursor-pointer flex items-center gap-2 text-[11px] font-bold text-slate-500">
-            <input type="checkbox" onchange="toggleTaskSelection('${todo.id}', this.checked)" ${state.selectedTodoIds.includes(todo.id) ? 'checked' : ''} class="w-4 h-4 rounded border-slate-300">
+          <div class="min-w-0">
+            <div class="text-sm font-bold text-slate-900 dark:text-white break-words">${escapeHtml(title)}</div>
+            <div class="mt-0.5">${badge}</div>
+          </div>
+          <label class="cursor-pointer flex items-center gap-2 text-[11px] font-bold text-slate-500 shrink-0">
+            <input type="checkbox" onchange="toggleTaskSelection('${item.id}', this.checked)" ${state.selectedTodoIds.includes(item.id) ? 'checked' : ''} class="w-4 h-4 rounded border-slate-300">
             Select
           </label>
         </div>
@@ -5132,8 +5197,8 @@
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
-        <button type="button" onclick="restoreTodo('${todo.id}')" class="btn-secondary !py-2 !px-3 text-xs"><i class="fa-solid fa-rotate-left mr-1"></i>Restore</button>
-        <button type="button" onclick="deleteTodoPermanently('${todo.id}')" class="btn-secondary !py-2 !px-3 text-xs !text-rose-600 !border-rose-200 dark:!border-rose-900/30"><i class="fa-solid fa-trash-can mr-1"></i>Delete</button>
+        <button type="button" onclick="restoreTrashItem('${item.id}')" class="btn-secondary !py-2 !px-3 text-xs"><i class="fa-solid fa-rotate-left mr-1"></i>Restore</button>
+        <button type="button" onclick="deleteTrashItemForever('${item.id}')" class="btn-secondary !py-2 !px-3 text-xs !text-rose-600 !border-rose-200 dark:!border-rose-900/30"><i class="fa-solid fa-trash-can mr-1"></i>Delete</button>
       </div>
     </div>`;
   }
@@ -5364,42 +5429,63 @@
     return out;
   }
 
-  // Tasks merge across the todos+trash boundary — a task can MOVE between them, so
-  // the newest version wins AND decides its location (active vs trash). LOCAL order
-  // is preserved; remote-only tasks are appended.
-  function mergeTasks(localTodos, localTrash, remoteTodos, remoteTrash, tombMap) {
+  // Live+Trash merge for ONE entity type — a record can MOVE between its live array
+  // (todos / projects / habits) and Trash, so the newest version wins AND decides its
+  // location. LOCAL order is preserved; remote-only records are appended. Trash
+  // entries are tagged with `_kind` so a single mixed `trash` array round-trips
+  // through the appData blob; tasks stay UNtagged for backward compatibility (a
+  // legacy trash entry with no `_kind` is a task). This is the proven task-merge
+  // algorithm, generalized so projects and habits become recoverable too.
+  function mergeLiveAndTrash(localLive, localTrash, remoteLive, remoteTrash, tombMap, kind) {
     const loc = new Map(), rem = new Map();
-    (Array.isArray(localTodos) ? localTodos : []).forEach(e => { if (e && e.id) loc.set(e.id, { e, inTrash: false }); });
+    (Array.isArray(localLive) ? localLive : []).forEach(e => { if (e && e.id) loc.set(e.id, { e, inTrash: false }); });
     (Array.isArray(localTrash) ? localTrash : []).forEach(e => { if (e && e.id) loc.set(e.id, { e, inTrash: true }); });
-    (Array.isArray(remoteTodos) ? remoteTodos : []).forEach(e => { if (e && e.id) rem.set(e.id, { e, inTrash: false }); });
+    (Array.isArray(remoteLive) ? remoteLive : []).forEach(e => { if (e && e.id) rem.set(e.id, { e, inTrash: false }); });
     (Array.isArray(remoteTrash) ? remoteTrash : []).forEach(e => { if (e && e.id) rem.set(e.id, { e, inTrash: true }); });
-    const todos = [], trash = [], emitted = new Set();
+    const live = [], trash = [], emitted = new Set();
     const emit = (id) => {
       if (emitted.has(id)) return; emitted.add(id);
       const l = loc.get(id), r = rem.get(id);
       const win = (l && r) ? (_entityTs(l.e) >= _entityTs(r.e) ? l : r) : (l || r);
       const tomb = tombMap.get(id);
       if (tomb && _tombTs(tomb) > _entityTs(win.e)) return;
-      if (win.inTrash) { if (!win.e.deletedAt) win.e.deletedAt = new Date(_entityTs(win.e) || Date.now()).toISOString(); trash.push(win.e); }
-      else { if (win.e.deletedAt) delete win.e.deletedAt; todos.push(win.e); }
+      if (win.inTrash) {
+        if (!win.e.deletedAt) win.e.deletedAt = new Date(_entityTs(win.e) || Date.now()).toISOString();
+        if (kind === 'task') { if (win.e._kind) delete win.e._kind; } else { win.e._kind = kind; }
+        trash.push(win.e);
+      } else {
+        if (win.e.deletedAt) delete win.e.deletedAt;
+        if (win.e._kind) delete win.e._kind;
+        live.push(win.e);
+      }
     };
-    (Array.isArray(localTodos) ? localTodos : []).forEach(e => { if (e && e.id) emit(e.id); });
+    (Array.isArray(localLive) ? localLive : []).forEach(e => { if (e && e.id) emit(e.id); });
     (Array.isArray(localTrash) ? localTrash : []).forEach(e => { if (e && e.id) emit(e.id); });
-    (Array.isArray(remoteTodos) ? remoteTodos : []).forEach(e => { if (e && e.id) emit(e.id); });
+    (Array.isArray(remoteLive) ? remoteLive : []).forEach(e => { if (e && e.id) emit(e.id); });
     (Array.isArray(remoteTrash) ? remoteTrash : []).forEach(e => { if (e && e.id) emit(e.id); });
-    return { todos, trash };
+    return { live, trash };
   }
 
-  // Merge a remote appData/state-shaped object INTO local `st` in place.
+  // Split a mixed Trash array into one entity kind (untagged entries are tasks).
+  function _trashOfKind(trash, kind) {
+    return (Array.isArray(trash) ? trash : []).filter(e => e && ((e._kind || 'task') === kind));
+  }
+
+  // Merge a remote appData/state-shaped object INTO local `st` in place. Each entity
+  // type is merged across its own live+trash boundary, then the three trash slices
+  // are recombined into the single mixed `st.trash` array.
   function mergeAppDataInto(st, remote) {
     const tombMap = new Map();
     mergeTombstones(st.tombstones, remote.tombstones).forEach(t => tombMap.set(t.id, t));
-    const { todos, trash } = mergeTasks(st.todos, st.trash, remote.todos, remote.trash, tombMap);
-    st.todos = todos;
-    st.trash = trash;
-    st.projects = mergeList(st.projects, remote.projects, tombMap);
+    const lt = st.trash, rt = remote.trash;
+    const taskM = mergeLiveAndTrash(st.todos, _trashOfKind(lt, 'task'), remote.todos, _trashOfKind(rt, 'task'), tombMap, 'task');
+    const projM = mergeLiveAndTrash(st.projects, _trashOfKind(lt, 'project'), remote.projects, _trashOfKind(rt, 'project'), tombMap, 'project');
+    const habM = mergeLiveAndTrash(st.habits, _trashOfKind(lt, 'habit'), remote.habits, _trashOfKind(rt, 'habit'), tombMap, 'habit');
+    st.todos = taskM.live;
+    st.projects = projM.live;
+    st.habits = habM.live;
+    st.trash = [...taskM.trash, ...projM.trash, ...habM.trash];
     st.reminders = mergeList(st.reminders, remote.reminders, tombMap);
-    st.habits = mergeList(st.habits, remote.habits, tombMap);
     st.tombstones = [...tombMap.values()];
   }
   window.mergeAppDataInto = mergeAppDataInto; // exposed for the sync self-test harness
@@ -5865,7 +5951,7 @@
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <div>
                 <h2 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Trash</h2>
-                <p class="text-sm text-slate-500 mt-1">Restore deleted tasks or permanently remove them.</p>
+                <p class="text-sm text-slate-500 mt-1">Restore deleted tasks, habits, projects &amp; roadmaps — or remove them for good.</p>
               </div>
               <div class="flex items-center gap-2">
                 <button type="button" class="btn-secondary !py-2 !px-3 text-xs" onclick="toggleSelectVisibleTrash()">Select visible</button>
@@ -5958,6 +6044,118 @@
     catch (err) { if (err?.status !== 404) console.warn('tasks mirror: delete failed', err); }
   }
 
+  // ── Project mirror while trashed ─────────────────────────────────────────────
+  // The `projects` collection has no `deleted_at` field, so a trashed project keeps
+  // its row untouched (the appData blob is the source of truth and already hides it).
+  // Restore is therefore usually a no-op; we only recreate the row if it went missing
+  // (e.g. the project was made offline). "Delete forever" runs the full destructive
+  // cleanup that the old hard-delete did.
+  async function pbRestoreProject(project) {
+    if (!pb.authStore.isValid || !project?.id) return;
+    try { await pb.collection('projects').getOne(project.id); }
+    catch (err) {
+      if (err?.status === 404 && window.projectToPBPayload) {
+        try { await pb.collection('projects').create({ id: project.id, ...window.projectToPBPayload(project, true) }); }
+        catch (_) {}
+      }
+    }
+  }
+  // The destructive half of deleting a project: drop the PB row, unassign its live
+  // tasks, unlink child roadmaps and project-scoped reminders. Runs only on "Delete
+  // forever" (or Empty Trash), never on a plain trash move.
+  function _finalizeProjectDeletion(projectId) {
+    if (pb.authStore.isValid) {
+      pb.collection('projects').delete(projectId).catch(e => { if (e?.status !== 404) console.warn('projects mirror: delete failed', e); });
+    }
+    (state.todos || []).forEach(t => {
+      if (t.projectId === projectId) {
+        t.projectId = '';
+        if (pb.authStore.isValid) pb.collection('tasks').update(t.id, { project: [] }).catch(e => { if (e?.status !== 404) console.warn('tasks mirror: unassign failed', e); });
+      }
+    });
+    (state.projects || []).forEach(p => { if (p.parentProjectId === projectId) p.parentProjectId = ''; });
+    (state.reminders || []).forEach(r => { if (r.linkType === 'project' && r.linkId === projectId) r.linkType = 'custom'; });
+    if (state.selectedProjectId === projectId) state.selectedProjectId = null;
+    if (state.selectedRoadmapId === projectId) state.selectedRoadmapId = null;
+  }
+
+  // ── Generic Trash apply-helpers (no save/render/toast) ───────────────────────
+  // The single-item and bulk Trash actions share these so a bulk op does one save
+  // and one render. Each routes by `_kind`; an untagged entry is a task.
+  function _applyRestore(item) {
+    if (!item) return;
+    const kind = item._kind || 'task';
+    state.trash = state.trash.filter(t => t.id !== item.id);
+    state.selectedTodoIds = state.selectedTodoIds.filter(v => v !== item.id);
+    if (kind === 'habit') {
+      const h = { ...item }; delete h.deletedAt; delete h._kind;
+      state.habits.unshift(h);
+      if (window.pbRestoreHabit) window.pbRestoreHabit(h);
+    } else if (kind === 'project') {
+      const p = { ...item }; delete p.deletedAt; delete p._kind;
+      state.projects.unshift(p);
+      // A roadmap's steps were trashed with it — bring them back so the chain returns.
+      if (p.isRoadmap) {
+        const steps = state.trash.filter(t => (t._kind || 'task') === 'task' && t.projectId === p.id);
+        steps.forEach(s => { const r = normalizeTask({ ...s }); delete r.deletedAt; delete r._kind; state.todos.unshift(r); pbRestoreTask(s.id); });
+        const stepIds = new Set(steps.map(s => s.id));
+        state.trash = state.trash.filter(t => !stepIds.has(t.id));
+        state.selectedTodoIds = state.selectedTodoIds.filter(v => !stepIds.has(v));
+      }
+      pbRestoreProject(p);
+    } else {
+      const r = normalizeTask({ ...item }); delete r.deletedAt; delete r._kind;
+      state.todos.unshift(r);
+      pbRestoreTask(item.id);
+    }
+  }
+  function _applyPurge(item) {
+    if (!item) return;
+    const kind = item._kind || 'task';
+    if (kind === 'habit') {
+      if (window.pbDeleteHabitRow) window.pbDeleteHabitRow(item.id);
+    } else if (kind === 'project') {
+      if (item.isRoadmap) {
+        const steps = state.trash.filter(t => (t._kind || 'task') === 'task' && t.projectId === item.id);
+        steps.forEach(s => pbDeleteTaskForever(s.id));
+        const stepIds = new Set(steps.map(s => s.id));
+        state.trash = state.trash.filter(t => !stepIds.has(t.id));
+        state.selectedTodoIds = state.selectedTodoIds.filter(v => !stepIds.has(v));
+      }
+      _finalizeProjectDeletion(item.id);
+    } else {
+      pbDeleteTaskForever(item.id);
+    }
+    state.trash = state.trash.filter(t => t.id !== item.id);
+    state.selectedTodoIds = state.selectedTodoIds.filter(v => v !== item.id);
+  }
+  function _trashItemNoun(item, lower) {
+    const kind = item._kind || 'task';
+    const n = kind === 'task' ? 'Task' : kind === 'habit' ? 'Habit' : (item.isRoadmap ? 'Roadmap' : 'Project');
+    return lower ? n.toLowerCase() : n;
+  }
+
+  // Single-item Trash actions used by the per-card Restore / Delete buttons.
+  async function restoreTrashItem(id) {
+    const item = state.trash.find(t => t.id === id);
+    if (!item) return;
+    const noun = _trashItemNoun(item), name = _trashItemTitle(item) || 'Item';
+    _applyRestore(item);
+    await save();
+    renderEverything();
+    toast('Restored', `${noun} "${name}" restored.`, 'success');
+  }
+  async function deleteTrashItemForever(id) {
+    const item = state.trash.find(t => t.id === id);
+    if (!item) return;
+    const noun = _trashItemNoun(item, true), name = _trashItemTitle(item) || 'this item';
+    if (!await customConfirm('Delete Forever', `Permanently delete ${noun} "${name}"? This cannot be undone.`)) return;
+    _applyPurge(item);
+    await save();
+    renderEverything();
+    toast('Deleted', `${noun.charAt(0).toUpperCase() + noun.slice(1)} permanently deleted.`, 'success');
+  }
+
   async function bulkTrashTodos() {
     const ids = state.selectedTodoIds.filter(id => state.todos.some(t => t.id === id));
     if (!ids.length) return toast('Bulk Action', 'No tasks selected.', 'warning');
@@ -5981,15 +6179,13 @@
       if (!state.trash.length) return toast('Trash Empty', 'There are no items in trash to restore.', 'info');
       ids = state.trash.map(t => t.id);
     }
-    const idSet = new Set(ids);
-    const restoring = state.trash.filter(t => idSet.has(t.id));
-    restoring.forEach(item => { const r = { ...normalizeTask(deepClone(item)) }; delete r.deletedAt; state.todos.unshift(r); });
-    restoring.forEach(item => pbRestoreTask(item.id));
-    state.trash = state.trash.filter(t => !idSet.has(t.id));
-    state.selectedTodoIds = [];
+    // Resolve fresh each iteration: restoring a roadmap also pulls its steps out of
+    // Trash, so an id may already be gone by the time we reach it.
+    let n = 0;
+    ids.forEach(id => { const item = state.trash.find(t => t.id === id); if (item) { _applyRestore(item); n++; } });
     await save();
     renderEverything();
-    toast('Restored', `${ids.length} task${ids.length > 1 ? 's' : ''} restored.`, 'success');
+    toast('Restored', `${n} item${n === 1 ? '' : 's'} restored.`, 'success');
   }
 
   async function bulkDeleteForever() {
@@ -5999,14 +6195,12 @@
       if (!state.trash.length) return toast('Trash Empty', 'There are no items in trash to delete.', 'info');
       ids = state.trash.map(t => t.id);
     }
-    if (!await customConfirm('Delete Forever', `Permanently delete ${ids.length} task${ids.length > 1 ? 's' : ''}? This cannot be undone.`)) return;
-    const idSet = new Set(ids);
-    ids.forEach(id => pbDeleteTaskForever(id));
-    state.trash = state.trash.filter(t => !idSet.has(t.id));
-    state.selectedTodoIds = state.selectedTodoIds.filter(id => !idSet.has(id));
+    if (!await customConfirm('Delete Forever', `Permanently delete ${ids.length} item${ids.length > 1 ? 's' : ''}? This cannot be undone.`)) return;
+    let n = 0;
+    ids.forEach(id => { const item = state.trash.find(t => t.id === id); if (item) { _applyPurge(item); n++; } });
     await save();
     renderEverything();
-    toast('Deleted', `${ids.length} task${ids.length > 1 ? 's' : ''} permanently deleted.`, 'success');
+    toast('Deleted', `${n} item${n === 1 ? '' : 's'} permanently deleted.`, 'success');
   }
 
   async function moveTodoToTrash(id, skipConfirm = true) {
@@ -6050,7 +6244,7 @@
   async function emptyTrash() {
     if (!state.trash.length) return toast('Trash Empty', 'Nothing to clear.', 'info');
     if (!await customConfirm('Empty Trash', 'Delete every item in trash permanently?')) return;
-    state.trash.forEach(item => pbDeleteTaskForever(item.id));
+    state.trash.slice().forEach(item => _applyPurge(item));
     state.trash = [];
     state.selectedTodoIds = [];
     await save();
@@ -6986,6 +7180,22 @@
     focusPersist();
   }
 
+  // Starting a focus block auto-advances a brand-new task to "In Progress" so the
+  // board reflects that work has begun. It ONLY nudges New → In Progress — it never
+  // auto-completes a task (the user marks it Done, even after Stop & Log), and it
+  // leaves any other status (In Progress / Review / Completed) untouched. Persists
+  // immediately so the change survives closing the modal without pressing Save.
+  function focusMaybeAdvanceStatus(task) {
+    if (!task || getTaskStatus(task) !== 'New') return;
+    applyTaskStatus(task, 'In Progress');
+    const statusEl = document.getElementById('editTaskStatus');
+    if (statusEl && state.editingTaskId === task.id) statusEl.value = 'In Progress';
+    save();
+    if (state.editingTaskId === task.id) renderTaskModalExtras();
+    try { renderTodos(); } catch (_) {}
+    try { renderSummary(); } catch (_) {}
+  }
+
   // ── Button handlers (bound to whichever task is open in the panel) ──
   window.focusStartPause = function () {
     const task = state.todos.find(t => t.id === state.editingTaskId);
@@ -7000,6 +7210,7 @@
       focus.remainingMs = focus.workMin * 60000;
     }
     if (focus.remainingMs <= 0) focus.remainingMs = (focus.mode === 'focus' ? focus.workMin : focus.breakMin) * 60000;
+    if (focus.mode === 'focus') focusMaybeAdvanceStatus(task); // pressing Start begins the work
     focusStartSegment();
     focusRenderPanel();
   };
@@ -7520,7 +7731,7 @@
       state.projects = Array.isArray(data.projects) ? data.projects : [];
       state.reminders = Array.isArray(data.reminders) ? data.reminders : [];
       state.habits = Array.isArray(data.habits) ? data.habits : [];
-      state.trash = Array.isArray(data.trash) ? data.trash.map(normalizeTask) : [];
+      state.trash = Array.isArray(data.trash) ? data.trash.map(normalizeTrashEntry) : [];
       state.selectedProjectId = data.selectedProjectId || null;
       state.myTodoSort = data.myTodoSort || state.myTodoSort || 'created';
       state.projectLayout = data.projectLayout || state.projectLayout || 'list';
@@ -7564,6 +7775,8 @@
   window.emptyTrash = emptyTrash;
   window.restoreTodo = restoreTodo;
   window.deleteTodoPermanently = deleteTodoPermanently;
+  window.restoreTrashItem = restoreTrashItem;
+  window.deleteTrashItemForever = deleteTrashItemForever;
   window.moveTodoToTrash = moveTodoToTrash;
   window.toggleTaskSelection = toggleTaskSelection;
   window.toggleSelectVisibleTodos = toggleSelectVisibleTodos;
@@ -7908,35 +8121,30 @@
     if (!project) return;
     const steps = (state.todos || []).filter(t => t.projectId === projectId);
     const msg = steps.length
-      ? `Delete "${project.name}"? Its ${steps.length} step${steps.length === 1 ? '' : 's'} will be moved to Trash, where you can restore them.`
-      : `Delete "${project.name}"?`;
-    if (!(await customConfirm('Delete Roadmap', msg))) return;
+      ? `Move "${project.name}" to Trash? Its ${steps.length} step${steps.length === 1 ? '' : 's'} go with it, and you can restore the whole roadmap later.`
+      : `Move "${project.name}" to Trash? You can restore it later.`;
+    if (!(await customConfirm('Move to Trash', msg))) return;
 
-    // Steps go to Trash with their dependencies intact, so restoring the whole set
-    // brings the chain back with it. A partial restore still renders correctly —
-    // the dependency panel resolves missing prerequisites away.
     const now = new Date().toISOString();
+    // The roadmap shell goes to Trash (restorable; its PB row is kept until "Delete
+    // forever" — see _finalizeProjectDeletion). Its steps go too, tagged as tasks,
+    // so My Tasks isn't flooded with now-unlocked steps and the whole chain restores
+    // together when the roadmap is restored (_applyRestore pulls them back).
+    state.trash.unshift({ ...deepClone(project), _kind: 'project', deletedAt: now });
     for (const step of steps) {
       state.trash.unshift({ ...normalizeTask(deepClone(step)), deletedAt: now });
-      // Soft-mark in the mirror (not hard-delete) so restoring the step from Trash
-      // brings its cloud row back intact — same lifecycle as any other trashed task.
+      // Soft-mark the mirror row (not hard-delete) so a restore brings it back intact.
       pbTrashTask(step.id);
     }
     const stepIds = new Set(steps.map(s => s.id));
     state.todos = state.todos.filter(t => !stepIds.has(t.id));
     state.selectedTodoIds = (state.selectedTodoIds || []).filter(id => !stepIds.has(id));
-
-    if (pb.authStore.isValid) {
-      try { await pb.collection('projects').delete(projectId); }
-      catch (err) { if (err?.status !== 404) showPBError(err); }
-    }
     state.projects = state.projects.filter(p => p.id !== projectId);
     if (state.selectedRoadmapId === projectId) state.selectedRoadmapId = null;
     if (state.selectedProjectId === projectId) state.selectedProjectId = null;
-    (state.reminders || []).forEach(r => { if (r.linkType === 'project' && r.linkId === projectId) r.linkType = 'custom'; });
 
     await save(); renderEverything();
-    toast('Roadmap deleted', steps.length ? `${steps.length} step${steps.length === 1 ? '' : 's'} moved to Trash.` : 'Removed.', 'success');
+    toast('Moved to Trash', steps.length ? `Roadmap + ${steps.length} step${steps.length === 1 ? '' : 's'} moved to Trash.` : 'Roadmap moved to Trash.', 'success');
   }
 
   function renderRoadmapView() {
