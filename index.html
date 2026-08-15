@@ -3205,7 +3205,7 @@
       if(homeProjectList){
         const recent=[...state.projects].sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0)).slice(0,3);
         homeProjectList.innerHTML=recent.length?recent.map(p=>{
-          const pTodos=state.todos.filter(t=>t.projectId===p.id);
+          const pTodos=window.projectTaskScope(p.id);
           const done=pTodos.filter(t=>t.completed).length;
           const pct=pTodos.length?Math.round((done/pTodos.length)*100):0;
           const statusColors={planning:'text-slate-500 bg-slate-100 dark:bg-slate-800',active:'text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400',paused:'text-amber-700 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-400',completed:'text-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400'};
@@ -3262,7 +3262,7 @@
               <span class="text-[10px] font-bold text-slate-400">${projects.length}</span>
             </div>
             <div class="space-y-3">${projects.length?projects.map(p=>{
-              const pTodos=state.todos.filter(t=>t.projectId===p.id); const done=pTodos.filter(t=>t.completed).length; const pct=pTodos.length?Math.round((done/pTodos.length)*100):0; const isSel=p.id===state.selectedProjectId;
+              const pTodos=window.projectTaskScope(p.id); const done=pTodos.filter(t=>t.completed).length; const pct=pTodos.length?Math.round((done/pTodos.length)*100):0; const isSel=p.id===state.selectedProjectId;
               return `<div class="rounded-lg border ${isSel?'border-indigo-500 ring-1 ring-indigo-500 bg-white dark:bg-slate-800':'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'} p-3 cursor-pointer hover:border-indigo-300 transition" onclick="selectProject('${p.id}')">
                 <div class="flex items-center gap-2 min-w-0 mb-2"><span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${p.color}"></span><div class="font-bold text-sm text-slate-900 dark:text-white truncate">${escapeHtml(p.name)}</div></div>
                 <p class="text-xs text-slate-500 line-clamp-2 mb-3">${escapeHtml(p.description||'No description')}</p>
@@ -3276,7 +3276,7 @@
         return;
       }
       list.innerHTML=visProjects.map(p=>{
-        const pTodos=state.todos.filter(t=>t.projectId===p.id); const done=pTodos.filter(t=>t.completed).length; const pct=pTodos.length?Math.round((done/pTodos.length)*100):0; const isSel=p.id===state.selectedProjectId;
+        const pTodos=window.projectTaskScope(p.id); const done=pTodos.filter(t=>t.completed).length; const pct=pTodos.length?Math.round((done/pTodos.length)*100):0; const isSel=p.id===state.selectedProjectId;
         return `<div class="rounded-xl border ${isSel?'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50/30 dark:bg-indigo-900/20':'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'} p-4 flex flex-col hover:border-indigo-300 transition cursor-pointer" onclick="selectProject('${p.id}')">
           <div class="flex items-start justify-between mb-2"><div class="flex items-center gap-2 min-w-0"><span class="w-3 h-3 rounded-full shrink-0" style="background:${p.color}"></span><h4 class="font-bold text-slate-900 dark:text-white truncate text-sm">${escapeHtml(p.name)}</h4></div></div>
           <div class="flex-1 text-xs text-slate-500 line-clamp-2 mb-4">${escapeHtml(p.description||'No description')}</div>
@@ -3292,7 +3292,7 @@
         container.innerHTML=`<form onsubmit="saveProjectEdit(event,'${p.id}')" class="space-y-4"><div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 mb-4"><h3 class="font-bold text-lg text-slate-900 dark:text-white">Edit Project</h3></div><div><label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Name</label><input id="epName" required type="text" class="ui-input text-sm" value="${escapeHtml(p.name)}" /></div><div><label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Description</label><textarea id="epDesc" class="ui-input text-sm resize-none" rows="2">${escapeHtml(p.description)}</textarea></div><div class="grid grid-cols-2 gap-3"><div><label class="text-xs text-slate-500 block mb-1">Start</label><input id="epStart" type="date" class="ui-input text-sm" value="${escapeHtml(p.startDate)}"/></div><div><label class="text-xs text-slate-500 block mb-1">End</label><input id="epEnd" type="date" class="ui-input text-sm" value="${escapeHtml(p.endDate)}"/></div></div><div class="grid grid-cols-2 gap-3"><div><label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Priority</label><select id="epPriority" class="ui-input text-sm"><option value="low" ${p.priority==='low'?'selected':''}>Low</option><option value="medium" ${!p.priority||p.priority==='medium'?'selected':''}>Medium</option><option value="high" ${p.priority==='high'?'selected':''}>High</option></select></div><div><label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Status</label><select id="epStatus" class="ui-input text-sm"><option value="planning" ${p.status==='planning'?'selected':''}>Planning</option><option value="active" ${!p.status||p.status==='active'?'selected':''}>Active</option><option value="paused" ${p.status==='paused'?'selected':''}>Paused</option><option value="completed" ${p.status==='completed'?'selected':''}>Done</option></select></div></div><div><label class="text-[11px] text-slate-500 block mb-2">Color</label><div class="color-picker" data-color-for="epColor"><input type="hidden" id="epColor" value="${escapeHtml(p.color)}"><div class="color-swatch-grid"></div></div></div><div class="flex gap-2 pt-2"><button type="button" onclick="cancelProjectEdit()" class="btn-secondary flex-1">Cancel</button><button type="submit" class="btn-primary flex-1">Save</button></div></form>`;
         return;
       }
-      const pTodos=state.todos.filter(t=>t.projectId===p.id); const done=pTodos.filter(t=>t.completed).length; const pct=pTodos.length?Math.round((done/pTodos.length)*100):0;
+      const pTodos=window.projectTaskScope(p.id); const done=pTodos.filter(t=>t.completed).length; const pct=pTodos.length?Math.round((done/pTodos.length)*100):0;
       container.innerHTML=`<div class="flex items-start justify-between mb-4"><div class="flex items-center gap-3 min-w-0"><span class="w-5 h-5 rounded shadow-sm shrink-0" style="background:${escapeHtml(p.color)}"></span><h3 class="text-2xl font-black text-slate-900 dark:text-white tracking-tight truncate">${escapeHtml(p.name)}</h3></div><div class="flex items-center gap-2 shrink-0"><button type="button" aria-label="Edit project" onclick="editProject('${p.id}')" class="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition"><i class="fa-solid fa-pen"></i></button><button type="button" aria-label="Delete project" onclick="deleteProject('${p.id}')" class="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition"><i class="fa-solid fa-trash"></i></button></div></div><p class="text-sm text-slate-500 mb-6">${escapeHtml(p.description||'No description.')}</p><div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700 mb-6"><div class="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-500 mb-2"><span>Progress</span><span>${done}/${pTodos.length} Tasks (${pct}%)</span></div><div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden"><div class="bg-indigo-500 h-full rounded-full" style="width:${pct}%"></div></div></div>${window.renderProjectTaskArea ? window.renderProjectTaskArea(p.id) : ''}`;
     }
 
@@ -7471,10 +7471,25 @@
     if (typeof window.renderSelectedProject === 'function') window.renderSelectedProject();
   };
 
+  // Tasks that count toward a plain project: its OWN tasks plus the steps of every
+  // roadmap attached to it (roadmap.parentProjectId === projectId). This surfaces an
+  // attached roadmap's steps as the project's tasks — on the board, in the list, on
+  // the timeline and in the progress bar — WITHOUT moving the steps out of the
+  // roadmap. The steps keep projectId === roadmap.id, so the roadmap's sequencing and
+  // step-locking keep working; a plain project (no child roadmaps) is unaffected.
+  function projectTaskScope(projectId) {
+    if (!projectId) return [];
+    const childRoadmapIds = new Set((state.projects || [])
+      .filter(p => p && p.isRoadmap && p.parentProjectId === projectId)
+      .map(p => p.id));
+    return (state.todos || []).filter(t => t && (t.projectId === projectId || childRoadmapIds.has(t.projectId)));
+  }
+  window.projectTaskScope = projectTaskScope;
+
   // Renders the "Tasks" area of a project: a board (status swimlanes) or a flat
   // list, plus the view toggle + add-task button. Injected by renderSelectedProject.
   function renderProjectTaskArea(projectId) {
-    const pTodos = state.todos.filter(t => t.projectId === projectId);
+    const pTodos = projectTaskScope(projectId);
     const view = state.projectTaskView || safeLS.getItem(PROJECT_TASK_VIEW_KEY) || 'board';
     const btn = (v, icon, label) => `<button type="button" onclick="setProjectTaskView('${v}')" class="px-3 py-1.5 text-xs font-bold rounded-md transition ${view === v ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-500 dark:text-slate-400'}"><i class="fa-solid ${icon} mr-1"></i>${label}</button>`;
     const header = `<div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
