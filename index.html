@@ -235,6 +235,36 @@
     }
     /* ================================================================ */
 
+    /* ── Notes editor (rich) ───────────────────────────────────────── */
+    .note-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+    .note-tool-group { display: flex; align-items: center; gap: 0.1rem; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 0.7rem; padding: 0.22rem; }
+    .note-tool-btn { width: 2.15rem; height: 2.15rem; display: grid; place-items: center; border: none; background: transparent; color: var(--muted); font-size: 0.82rem; border-radius: 0.5rem; cursor: pointer; transition: all 140ms ease; }
+    .note-tool-btn:hover { background: var(--surface-strong); color: var(--accent); box-shadow: var(--shadow-sm); }
+    .note-tool-btn:active { transform: scale(0.92); }
+    .note-tool-btn.danger:hover { color: var(--danger); }
+    .note-card { border: 1px solid var(--line); background: var(--surface-soft); transition: all 150ms ease; }
+    .note-card:hover { border-color: color-mix(in srgb, var(--accent), transparent 55%); background: var(--surface-strong); box-shadow: var(--shadow-sm); }
+    .note-color-none { background: var(--surface-strong); box-shadow: inset 0 0 0 1px var(--line-strong); }
+    .note-color-none::before { content: ''; position: absolute; inset: 7px; border-radius: 9999px; background: linear-gradient(45deg, transparent 45%, var(--danger) 45%, var(--danger) 55%, transparent 55%); opacity: 0.75; }
+    .note-color-none.selected::after { content: ''; }
+    .note-sheet { display: grid; grid-template-columns: 1fr; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface-strong); box-shadow: var(--shadow-sm); overflow: hidden; }
+    html.dark .note-sheet { background: var(--surface-soft); }
+    .note-title-input { width: 100%; border: none; background: transparent; color: var(--ink); font-size: 1.55rem; font-weight: 800; padding: 0; }
+    .note-title-input:focus { outline: none; }
+    .note-title-input::placeholder { color: #cbd5e1; font-weight: 800; }
+    html.dark .note-title-input::placeholder { color: #3f3f46; }
+    .note-body-input { width: 100%; border: none; background: transparent; resize: vertical; color: var(--ink); padding: 1.15rem 1.35rem; line-height: 1.75; font-size: 0.95rem; min-height: 300px; }
+    .note-body-input:focus { outline: none; }
+    .note-body-input::placeholder { color: #94a3b8; font-style: italic; }
+    .note-preview-pane { padding: 1.15rem 1.35rem; min-height: 300px; overflow: auto; }
+    .note-sheet.split .note-preview-pane { border-top: 1px solid var(--line); }
+    @media (min-width: 1024px) {
+      .note-sheet.split { grid-template-columns: 1fr 1fr; }
+      .note-sheet.split .note-preview-pane { border-top: none; border-left: 1px solid var(--line); }
+    }
+    .note-preview-pane .jdin-md-empty { color: var(--muted); font-style: italic; opacity: 0.7; }
+    /* ================================================================ */
+
     ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.3); border-radius: 10px; }
@@ -5316,6 +5346,12 @@
     const iso = note && (note.updatedAt || note.createdAt); if (!iso) return '';
     try { return 'Edited ' + formatDate(iso.split('T')[0], iso.length > 11 ? iso.slice(11, 16) : ''); } catch (_) { return ''; }
   }
+  function _noteFooterText(note) {
+    const body = (note && note.body) || '';
+    const words = body.trim() ? body.trim().split(/\s+/).length : 0;
+    const stamp = _noteUpdatedText(note);
+    return `${words} word${words === 1 ? '' : 's'}${stamp ? '  ·  ' + stamp : ''}`;
+  }
   function _noteSnippet(body) {
     return String(body || '')
       .replace(/```[\s\S]*?```/g, '')
@@ -5355,7 +5391,7 @@
     if (bodyEl) note.body = bodyEl.value;
     note.updatedAt = new Date().toISOString();
     const prev = document.getElementById('notePreview'); if (prev && !prev.classList.contains('hidden')) prev.innerHTML = renderMarkdown(note.body);
-    const metaEl = document.getElementById('noteEditorMeta'); if (metaEl) metaEl.textContent = _noteUpdatedText(note);
+    const metaEl = document.getElementById('noteEditorMeta'); if (metaEl) metaEl.textContent = _noteFooterText(note);
     clearTimeout(_noteSaveTimer);
     _noteSaveTimer = setTimeout(() => { pbUpdateNote(note); save(); _refreshNotesListOnly(); }, 500);
   }
@@ -5396,73 +5432,75 @@
   }
   function toggleNotePreview() {
     const prev = document.getElementById('notePreview');
-    const panes = document.getElementById('noteEditPanes');
+    const sheet = document.getElementById('noteSheet');
     const btn = document.getElementById('notePreviewToggle');
     const body = document.getElementById('noteBodyInput');
-    if (!prev || !panes) return;
+    if (!prev || !sheet) return;
     const hiding = !prev.classList.contains('hidden');
-    if (hiding) { prev.classList.add('hidden'); panes.classList.remove('lg:grid-cols-2'); if (btn) btn.innerHTML = '<i class="fa-solid fa-eye mr-1"></i>Preview'; }
-    else { prev.innerHTML = renderMarkdown(body ? body.value : ''); prev.classList.remove('hidden'); panes.classList.add('lg:grid-cols-2'); if (btn) btn.innerHTML = '<i class="fa-solid fa-eye-slash mr-1"></i>Hide preview'; }
+    if (hiding) { prev.classList.add('hidden'); sheet.classList.remove('split'); if (btn) btn.innerHTML = '<i class="fa-solid fa-eye mr-1"></i>Preview'; }
+    else { prev.innerHTML = renderMarkdown(body ? body.value : ''); prev.classList.remove('hidden'); sheet.classList.add('split'); if (btn) btn.innerHTML = '<i class="fa-solid fa-eye-slash mr-1"></i>Hide preview'; }
   }
 
-  const _noteMdBtn = 'w-7 h-7 rounded grid place-items-center text-slate-500 hover:bg-white dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs transition';
   function renderNoteCard(note) {
     const active = note.id === state.editingNoteId;
     const title = (note.title || '').trim() || 'Untitled note';
     const snippet = _noteSnippet(note.body);
-    const stripe = note.color ? `border-left:3px solid ${escapeHtml(note.color)};` : '';
-    return `<button type="button" onclick="openNote('${note.id}')" style="${stripe}"
-      class="w-full text-left p-3 rounded-xl border transition ${active ? 'border-indigo-400 ring-2 ring-indigo-200 dark:ring-indigo-500/30 bg-indigo-50/40 dark:bg-indigo-900/10' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-indigo-300'}">
-      <div class="flex items-start justify-between gap-2">
-        <div class="font-bold text-sm text-slate-900 dark:text-white truncate">${escapeHtml(title)}</div>
-        ${note.pinned ? '<i class="fa-solid fa-thumbtack text-[11px] text-amber-500 shrink-0 mt-0.5"></i>' : ''}
+    const dot = note.color ? `<span class="inline-block w-2.5 h-2.5 rounded-full shrink-0 mt-1.5" style="background:${escapeHtml(note.color)}"></span>` : '';
+    const activeStyle = active ? 'border-color:var(--accent);box-shadow:var(--ring);background:var(--surface-strong);' : '';
+    return `<button type="button" onclick="openNote('${note.id}')" style="${activeStyle}"
+      class="note-card w-full text-left p-3 rounded-xl">
+      <div class="flex items-start gap-2.5">
+        ${dot}
+        <div class="min-w-0 flex-1">
+          <div class="flex items-start justify-between gap-2">
+            <div class="font-bold text-sm truncate" style="color:var(--ink)">${escapeHtml(title)}</div>
+            ${note.pinned ? '<i class="fa-solid fa-thumbtack text-[11px] shrink-0 mt-0.5" style="color:var(--accent)"></i>' : ''}
+          </div>
+          ${snippet ? `<div class="text-xs mt-1 break-words" style="color:var(--muted)">${escapeHtml(snippet)}</div>` : '<div class="text-xs italic mt-1" style="color:var(--muted);opacity:.65">Empty note</div>'}
+          <div class="text-[10px] mt-2" style="color:var(--muted);opacity:.85">${escapeHtml(_noteUpdatedText(note))}</div>
+        </div>
       </div>
-      ${snippet ? `<div class="text-xs text-slate-500 mt-1 break-words">${escapeHtml(snippet)}</div>` : '<div class="text-xs text-slate-400 italic mt-1">Empty note</div>'}
-      <div class="text-[10px] text-slate-400 mt-2">${escapeHtml(_noteUpdatedText(note))}</div>
     </button>`;
   }
   function renderNoteEditor(note) {
-    const colors = NOTE_COLORS.map(c => {
-      const sel = (note.color || '') === c;
-      const ring = sel ? 'ring-2 ring-offset-1 ring-indigo-400 dark:ring-offset-slate-900' : '';
-      if (!c) return `<button type="button" title="No color" onclick="setNoteColor('${note.id}','')" class="w-6 h-6 rounded-full border border-slate-300 dark:border-slate-600 grid place-items-center ${ring}"><i class="fa-solid fa-ban text-[10px] text-slate-400"></i></button>`;
-      return `<button type="button" title="Color" onclick="setNoteColor('${note.id}','${c}')" class="w-6 h-6 rounded-full border border-black/10 ${ring}" style="background:${c}"></button>`;
-    }).join('');
+    const swatches = ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
+    const colors = `<button type="button" title="No color" onclick="setNoteColor('${note.id}','')" class="color-swatch note-color-none ${!note.color ? 'selected' : ''}"></button>`
+      + swatches.map(c => `<button type="button" title="Color" onclick="setNoteColor('${note.id}','${c}')" class="color-swatch ${note.color === c ? 'selected' : ''}" style="background:${c}"></button>`).join('');
     return `
-    <div class="flex items-center justify-between gap-3 mb-3">
-      <input id="noteTitleInput" value="${escapeHtml(note.title || '')}" oninput="_noteAutosave('${note.id}')" maxlength="120" placeholder="Note title"
-        class="flex-1 min-w-0 bg-transparent text-xl font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none" />
+    <div class="flex items-center gap-3 mb-4">
+      <input id="noteTitleInput" value="${escapeHtml(note.title || '')}" oninput="_noteAutosave('${note.id}')" maxlength="120" placeholder="Untitled note" class="note-title-input flex-1 min-w-0" />
       <div class="flex items-center gap-1 shrink-0">
-        <button type="button" title="${note.pinned ? 'Unpin' : 'Pin'}" onclick="toggleNotePin('${note.id}')" class="w-8 h-8 rounded-lg grid place-items-center hover:bg-slate-100 dark:hover:bg-slate-700 ${note.pinned ? 'text-amber-500' : 'text-slate-400'}"><i class="fa-solid fa-thumbtack"></i></button>
-        <button type="button" title="Move to Trash" onclick="deleteNote('${note.id}')" class="w-8 h-8 rounded-lg grid place-items-center text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-500"><i class="fa-solid fa-trash-can"></i></button>
+        <button type="button" title="${note.pinned ? 'Unpin' : 'Pin to top'}" onclick="toggleNotePin('${note.id}')" class="note-tool-btn" style="${note.pinned ? 'color:var(--accent)' : ''}"><i class="fa-solid fa-thumbtack"></i></button>
+        <button type="button" title="Move to Trash" onclick="deleteNote('${note.id}')" class="note-tool-btn danger"><i class="fa-solid fa-trash-can"></i></button>
       </div>
     </div>
-    <div class="flex flex-wrap items-center gap-2 mb-3">
-      <div class="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-        <button type="button" title="Bold" onclick="applyNoteMdTool('bold')" class="${_noteMdBtn}"><i class="fa-solid fa-bold"></i></button>
-        <button type="button" title="Italic" onclick="applyNoteMdTool('italic')" class="${_noteMdBtn}"><i class="fa-solid fa-italic"></i></button>
-        <button type="button" title="Heading" onclick="applyNoteMdTool('h')" class="${_noteMdBtn}"><i class="fa-solid fa-heading"></i></button>
-        <button type="button" title="Bulleted list" onclick="applyNoteMdTool('ul')" class="${_noteMdBtn}"><i class="fa-solid fa-list-ul"></i></button>
-        <button type="button" title="Numbered list" onclick="applyNoteMdTool('ol')" class="${_noteMdBtn}"><i class="fa-solid fa-list-ol"></i></button>
-        <button type="button" title="Link" onclick="applyNoteMdTool('link')" class="${_noteMdBtn}"><i class="fa-solid fa-link"></i></button>
+    <div class="note-toolbar mb-3">
+      <div class="note-tool-group">
+        <button type="button" title="Bold" onclick="applyNoteMdTool('bold')" class="note-tool-btn"><i class="fa-solid fa-bold"></i></button>
+        <button type="button" title="Italic" onclick="applyNoteMdTool('italic')" class="note-tool-btn"><i class="fa-solid fa-italic"></i></button>
+        <button type="button" title="Heading" onclick="applyNoteMdTool('h')" class="note-tool-btn"><i class="fa-solid fa-heading"></i></button>
+        <button type="button" title="Bulleted list" onclick="applyNoteMdTool('ul')" class="note-tool-btn"><i class="fa-solid fa-list-ul"></i></button>
+        <button type="button" title="Numbered list" onclick="applyNoteMdTool('ol')" class="note-tool-btn"><i class="fa-solid fa-list-ol"></i></button>
+        <button type="button" title="Link" onclick="applyNoteMdTool('link')" class="note-tool-btn"><i class="fa-solid fa-link"></i></button>
       </div>
-      <div class="flex items-center gap-1.5 ml-auto">${colors}</div>
-      <button type="button" id="notePreviewToggle" onclick="toggleNotePreview()" class="btn-secondary !py-1.5 !px-3 text-xs"><i class="fa-solid fa-eye-slash mr-1"></i>Hide preview</button>
+      <div class="color-swatch-grid" style="gap:0.45rem">${colors}</div>
+      <button type="button" id="notePreviewToggle" onclick="toggleNotePreview()" class="btn-secondary !py-1.5 !px-3 text-xs" style="margin-left:auto"><i class="fa-solid fa-eye-slash mr-1"></i>Hide preview</button>
     </div>
-    <div id="noteEditPanes" class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-      <textarea id="noteBodyInput" oninput="_noteAutosave('${note.id}')" placeholder="Start writing… Markdown supported."
-        class="ui-input text-sm font-mono leading-relaxed resize-y" style="min-height:340px;">${escapeHtml(note.body || '')}</textarea>
-      <div id="notePreview" class="jdin-md border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50/60 dark:bg-slate-800/40 overflow-auto" style="min-height:340px;">${renderMarkdown(note.body || '')}</div>
+    <div id="noteSheet" class="note-sheet split">
+      <textarea id="noteBodyInput" oninput="_noteAutosave('${note.id}')" placeholder="Start writing…  Use **bold**, # headings, - lists." class="note-body-input">${escapeHtml(note.body || '')}</textarea>
+      <div id="notePreview" class="jdin-md note-preview-pane">${renderMarkdown(note.body || '')}</div>
     </div>
-    <div id="noteEditorMeta" class="text-[11px] text-slate-400 mt-3">${escapeHtml(_noteUpdatedText(note))}</div>`;
+    <div id="noteEditorMeta" class="text-[11px] mt-3" style="color:var(--muted)">${escapeHtml(_noteFooterText(note))}</div>`;
   }
   function renderNoteEmptyState() {
     const has = (state.notes || []).length > 0;
-    return `<div class="flex flex-col items-center justify-center text-center text-slate-400 py-16" style="min-height:340px;">
-      <i class="fa-regular fa-note-sticky text-4xl mb-3 opacity-50"></i>
-      <p class="text-sm font-semibold text-slate-500 dark:text-slate-400">${has ? 'Select a note to edit' : 'No notes yet'}</p>
-      <p class="text-xs mt-1">${has ? 'Pick one from the list, or create a new one.' : 'Create your first note to get started.'}</p>
-      <button type="button" onclick="createNote()" class="btn-primary mt-4 !py-2 !px-4 text-sm"><i class="fa-solid fa-plus mr-1"></i>New Note</button>
+    return `<div class="flex flex-col items-center justify-center text-center py-20" style="min-height:320px;color:var(--muted)">
+      <div class="w-16 h-16 rounded-2xl grid place-items-center mb-4" style="background:var(--surface-soft);border:1px solid var(--line)">
+        <i class="fa-regular fa-note-sticky text-3xl" style="color:var(--accent);opacity:.9"></i>
+      </div>
+      <p class="text-base font-bold" style="color:var(--ink)">${has ? 'Select a note' : 'No notes yet'}</p>
+      <p class="text-sm mt-1">${has ? 'Pick one from the list, or start a new one.' : 'Capture a thought, a list, anything.'}</p>
+      <button type="button" onclick="createNote()" class="btn-primary mt-5 !py-2.5 !px-5 text-sm"><i class="fa-solid fa-plus mr-1"></i>New Note</button>
     </div>`;
   }
   function _refreshNotesListOnly() {
