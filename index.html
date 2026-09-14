@@ -1377,6 +1377,7 @@
             <button type="button" data-view="calendar" class="nav-btn nav-inactive"><i class="fa-regular fa-calendar-days w-5 text-center text-sm"></i> Calendar</button>
             <button type="button" data-view="upcoming" class="nav-btn nav-inactive"><i class="fa-solid fa-clock w-5 text-center text-sm"></i> Upcoming</button>
             <button type="button" data-view="habits" class="nav-btn nav-inactive"><i class="fa-solid fa-layer-group w-5 text-center text-sm"></i> Habits</button>
+            <button type="button" data-view="notes" class="nav-btn nav-inactive"><i class="fa-solid fa-note-sticky w-5 text-center text-sm"></i> Notes</button>
             <button type="button" data-view="analytics" class="nav-btn nav-inactive"><i class="fa-solid fa-chart-simple w-5 text-center text-sm"></i> Analytics</button>
             <button type="button" data-view="settings" class="nav-btn nav-inactive"><i class="fa-solid fa-sliders w-5 text-center text-sm"></i> Settings</button>
           </nav>
@@ -1720,6 +1721,29 @@
                 <div class="text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">This Week</div>
               </div>
               <div id="habitList" class="space-y-4"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Notes View -->
+        <section id="view-notes" class="view hidden space-y-6 max-w-6xl mx-auto">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+            <div>
+              <h2 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Notes</h2>
+              <p class="text-sm text-slate-500 mt-1">Jot down anything. Markdown supported, synced across your devices.</p>
+            </div>
+            <button type="button" onclick="createNote()" class="btn-primary self-start sm:self-auto"><i class="fa-solid fa-plus mr-2"></i>New Note</button>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="card p-4 h-fit lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-auto">
+              <div class="flex items-center justify-between mb-3 px-1">
+                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-500">My Notes</h3>
+                <span class="text-[11px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg" id="noteCount">0</span>
+              </div>
+              <div id="noteList" class="space-y-2"></div>
+            </div>
+            <div class="lg:col-span-2 card p-5 sm:p-6">
+              <div id="noteEditor"></div>
             </div>
           </div>
         </section>
@@ -2142,7 +2166,7 @@
 
     const state = window.__JDIN_STATE__ || (window.__JDIN_STATE__ = {
       user: { name: 'New User', email: 'user@example.com', phone: '', avatar: '' },
-      todos:[],projects:[],reminders:[],habits:[],trash:[],tombstones:[],selectedTodoIds:[],activeView:'home',
+      todos:[],projects:[],reminders:[],habits:[],notes:[],trash:[],tombstones:[],selectedTodoIds:[],activeView:'home',editingNoteId:null,
       todoFilter:'all',search:'',selectedProjectId:null,
       myTodoSort:'created',projectLayout:'list',weatherLocation:null,
       dateFormat:'mdy',timeFormat:'12h',weekStart:'sunday',homeView:'home',
@@ -2741,7 +2765,7 @@
     window.showDailyBriefing = showDailyBriefing;
     window.handleSignOut = async function() {
       if (pb?.authStore) pb.authStore.clear();
-      state.user = { name: 'New User', email: 'user@example.com', phone: '', avatar: '' }; state.todos = []; state.projects = []; state.reminders = []; state.habits = []; state.trash = []; state.tombstones = []; state.selectedProjectId = null; state.editingProjectId = null; state.search = ''; state.todoFilter = 'all';
+      state.user = { name: 'New User', email: 'user@example.com', phone: '', avatar: '' }; state.todos = []; state.projects = []; state.reminders = []; state.habits = []; state.notes = []; state.trash = []; state.tombstones = []; state.selectedProjectId = null; state.editingProjectId = null; state.editingNoteId = null; state.search = ''; state.todoFilter = 'all';
       if (window.__resetSyncSnapshot) window.__resetSyncSnapshot();
       // Reset personal preferences to defaults so the next user does NOT inherit them.
       state.themePreference = 'default'; state.language = 'en'; state.emailReminders = true;
@@ -4835,6 +4859,7 @@
     if (!Array.isArray(state.reminders)) state.reminders = [];
     state.reminders.forEach(r => { if (r && typeof r === 'object' && r.id != null && !safeIdOk(r.id)) r.id = generatePBId(); });
     if (!Array.isArray(state.habits)) state.habits = [];
+    if (!Array.isArray(state.notes)) state.notes = [];
     state.habits.forEach(h => {
       if (!h || typeof h !== 'object') return;
       if (!Array.isArray(h.history)) h.history = []; // renderHabits/toggleHabitDay assume history is an array
@@ -4859,6 +4884,7 @@
       projects: state?.projects || [],
       reminders: state?.reminders || [],
       habits: state?.habits || [],
+      notes: state?.notes || [],
       trash: state?.trash || [],
       selectedProjectId: state?.selectedProjectId ?? null,
       myTodoSort: state?.myTodoSort || 'created',
@@ -5165,6 +5191,7 @@
   function _trashKindMeta(item) {
     const kind = item._kind || 'task';
     if (kind === 'habit') return { label: 'Habit', icon: 'fa-repeat', accent: 'text-emerald-600 dark:text-emerald-400' };
+    if (kind === 'note') return { label: 'Note', icon: 'fa-note-sticky', accent: 'text-amber-600 dark:text-amber-400' };
     if (kind === 'project') return item.isRoadmap
       ? { label: 'Roadmap', icon: 'fa-route', accent: 'text-indigo-600 dark:text-indigo-400' }
       : { label: 'Project', icon: 'fa-folder', accent: 'text-sky-600 dark:text-sky-400' };
@@ -5224,6 +5251,245 @@
     }
     updateBulkBars();
   }
+
+  /* ───────────────────────────────────────────────────────────────────────
+     NOTES — a standalone Markdown note-taking view. Notes are the source of
+     truth in the appData blob and mirror to the `notes` PocketBase collection,
+     the same pattern habits use. Trash-aware via _kind:'note'. All mirror calls
+     are auth-guarded and error-swallowed — the app never reads back from the
+     collection, so a mirror hiccup can't affect the UI or lose data.
+     ─────────────────────────────────────────────────────────────────────── */
+  const NOTE_COLORS = ['', '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
+
+  function noteToPBPayload(note, includeUser = false) {
+    const payload = {
+      title: note?.title || '',
+      body: note?.body || '',
+      color: note?.color || '',
+      pinned: !!note?.pinned,
+      tags: Array.isArray(note?.tags) ? note.tags : []
+    };
+    if (includeUser && pb?.authStore?.model?.id) payload.user = [pb.authStore.model.id];
+    return payload;
+  }
+  async function pbCreateNote(note) {
+    if (!pb.authStore.isValid || !note?.id) return;
+    try { await pb.collection('notes').create({ id: note.id, ...noteToPBPayload(note, true) }); }
+    catch (err) { if (err?.status !== 400 && err?.status !== 404) console.warn('notes mirror: create failed', err); }
+  }
+  async function pbUpdateNote(note) {
+    if (!pb.authStore.isValid || !note?.id) return;
+    try { await pb.collection('notes').update(note.id, noteToPBPayload(note)); }
+    catch (err) { if (err?.status === 404) return pbCreateNote(note); console.warn('notes mirror: update failed', err); }
+  }
+  async function pbTrashNote(id) {
+    if (!pb.authStore.isValid || !id) return;
+    try { await pb.collection('notes').update(id, { deleted_at: new Date().toISOString() }); }
+    catch (err) { if (err?.status !== 404) console.warn('notes mirror: trash failed', err); }
+  }
+  async function pbRestoreNote(note) {
+    if (!pb.authStore.isValid || !note?.id) return;
+    try { await pb.collection('notes').update(note.id, { deleted_at: '' }); }
+    catch (err) { if (err?.status === 404) return pbCreateNote(note); console.warn('notes mirror: restore failed', err); }
+  }
+  async function pbDeleteNote(id) {
+    if (!pb.authStore.isValid || !id) return;
+    try { await pb.collection('notes').delete(id); }
+    catch (err) { if (err?.status !== 404) console.warn('notes mirror: delete failed', err); }
+  }
+  window.pbRestoreNote = pbRestoreNote;
+  window.pbDeleteNoteRow = pbDeleteNote;
+
+  // Notes for the view: filtered by the global search box, pinned first, then
+  // most-recently-edited.
+  function visibleNotes() {
+    const q = (state.search || '').trim().toLowerCase();
+    let items = (state.notes || []).slice();
+    if (q) items = items.filter(n => [n.title, n.body].join(' ').toLowerCase().includes(q));
+    return items.sort((a, b) => {
+      if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
+      return String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || ''));
+    });
+  }
+
+  function _noteUpdatedText(note) {
+    const iso = note && (note.updatedAt || note.createdAt); if (!iso) return '';
+    try { return 'Edited ' + formatDate(iso.split('T')[0], iso.length > 11 ? iso.slice(11, 16) : ''); } catch (_) { return ''; }
+  }
+  function _noteSnippet(body) {
+    return String(body || '')
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/[#>*_`~-]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120);
+  }
+
+  function createNote() {
+    const now = new Date().toISOString();
+    const note = { id: generatePBId(), title: '', body: '', color: '', pinned: false, tags: [], createdAt: now, updatedAt: now };
+    state.notes.unshift(note);
+    state.editingNoteId = note.id;
+    pbCreateNote(note);
+    save();
+    renderNotes();
+    setTimeout(() => { const el = document.getElementById('noteTitleInput'); if (el) el.focus(); }, 30);
+  }
+  function openNote(id) {
+    state.editingNoteId = id;
+    renderNotes();
+    if (window.innerWidth < 1024) { const ed = document.getElementById('noteEditor'); if (ed) ed.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  }
+  function closeNoteEditor() { state.editingNoteId = null; renderNotes(); }
+
+  // Debounced autosave while typing: write into the note, live-update the
+  // preview + "edited" stamp without rebuilding the editor (keeps the caret),
+  // then mirror + persist on a short delay.
+  let _noteSaveTimer = null;
+  function _noteAutosave(id) {
+    const note = state.notes.find(n => n.id === id); if (!note) return;
+    const titleEl = document.getElementById('noteTitleInput');
+    const bodyEl = document.getElementById('noteBodyInput');
+    if (titleEl) note.title = titleEl.value;
+    if (bodyEl) note.body = bodyEl.value;
+    note.updatedAt = new Date().toISOString();
+    const prev = document.getElementById('notePreview'); if (prev && !prev.classList.contains('hidden')) prev.innerHTML = renderMarkdown(note.body);
+    const metaEl = document.getElementById('noteEditorMeta'); if (metaEl) metaEl.textContent = _noteUpdatedText(note);
+    clearTimeout(_noteSaveTimer);
+    _noteSaveTimer = setTimeout(() => { pbUpdateNote(note); save(); _refreshNotesListOnly(); }, 500);
+  }
+  function toggleNotePin(id) {
+    const note = state.notes.find(n => n.id === id); if (!note) return;
+    note.pinned = !note.pinned; note.updatedAt = new Date().toISOString();
+    pbUpdateNote(note); save(); renderNotes();
+  }
+  function setNoteColor(id, color) {
+    const note = state.notes.find(n => n.id === id); if (!note) return;
+    note.color = color || ''; note.updatedAt = new Date().toISOString();
+    pbUpdateNote(note); save(); renderNotes();
+  }
+  async function deleteNote(id) {
+    const note = state.notes.find(n => n.id === id); if (!note) return;
+    if (!(await customConfirm('Move to Trash', 'Move this note to Trash? You can restore it later.'))) return;
+    state.trash.unshift({ ...JSON.parse(JSON.stringify(note)), _kind: 'note', deletedAt: new Date().toISOString() });
+    state.notes = state.notes.filter(n => n.id !== id);
+    if (state.editingNoteId === id) state.editingNoteId = null;
+    pbTrashNote(id);
+    await save();
+    renderEverything();
+    toast('Moved to Trash', 'Note moved to Trash.', 'success');
+  }
+  // Markdown toolbar for the note body (mirrors the task-notes mdTool).
+  function applyNoteMdTool(action) {
+    const ta = document.getElementById('noteBodyInput'); if (!ta) return;
+    ta.focus();
+    const start = ta.selectionStart, end = ta.selectionEnd, val = ta.value, sel = val.slice(start, end);
+    const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+    if (action === 'bold') ta.setRangeText(`**${sel || 'bold text'}**`, start, end, 'end');
+    else if (action === 'italic') ta.setRangeText(`*${sel || 'italic text'}*`, start, end, 'end');
+    else if (action === 'link') ta.setRangeText(`[${sel || 'link text'}](https://)`, start, end, 'end');
+    else if (action === 'h') ta.setRangeText('## ', lineStart, lineStart, 'end');
+    else if (action === 'ul') ta.setRangeText('- ', lineStart, lineStart, 'end');
+    else if (action === 'ol') ta.setRangeText('1. ', lineStart, lineStart, 'end');
+    if (state.editingNoteId) _noteAutosave(state.editingNoteId);
+  }
+  function toggleNotePreview() {
+    const prev = document.getElementById('notePreview');
+    const panes = document.getElementById('noteEditPanes');
+    const btn = document.getElementById('notePreviewToggle');
+    const body = document.getElementById('noteBodyInput');
+    if (!prev || !panes) return;
+    const hiding = !prev.classList.contains('hidden');
+    if (hiding) { prev.classList.add('hidden'); panes.classList.remove('lg:grid-cols-2'); if (btn) btn.innerHTML = '<i class="fa-solid fa-eye mr-1"></i>Preview'; }
+    else { prev.innerHTML = renderMarkdown(body ? body.value : ''); prev.classList.remove('hidden'); panes.classList.add('lg:grid-cols-2'); if (btn) btn.innerHTML = '<i class="fa-solid fa-eye-slash mr-1"></i>Hide preview'; }
+  }
+
+  const _noteMdBtn = 'w-7 h-7 rounded grid place-items-center text-slate-500 hover:bg-white dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs transition';
+  function renderNoteCard(note) {
+    const active = note.id === state.editingNoteId;
+    const title = (note.title || '').trim() || 'Untitled note';
+    const snippet = _noteSnippet(note.body);
+    const stripe = note.color ? `border-left:3px solid ${escapeHtml(note.color)};` : '';
+    return `<button type="button" onclick="openNote('${note.id}')" style="${stripe}"
+      class="w-full text-left p-3 rounded-xl border transition ${active ? 'border-indigo-400 ring-2 ring-indigo-200 dark:ring-indigo-500/30 bg-indigo-50/40 dark:bg-indigo-900/10' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-indigo-300'}">
+      <div class="flex items-start justify-between gap-2">
+        <div class="font-bold text-sm text-slate-900 dark:text-white truncate">${escapeHtml(title)}</div>
+        ${note.pinned ? '<i class="fa-solid fa-thumbtack text-[11px] text-amber-500 shrink-0 mt-0.5"></i>' : ''}
+      </div>
+      ${snippet ? `<div class="text-xs text-slate-500 mt-1 break-words">${escapeHtml(snippet)}</div>` : '<div class="text-xs text-slate-400 italic mt-1">Empty note</div>'}
+      <div class="text-[10px] text-slate-400 mt-2">${escapeHtml(_noteUpdatedText(note))}</div>
+    </button>`;
+  }
+  function renderNoteEditor(note) {
+    const colors = NOTE_COLORS.map(c => {
+      const sel = (note.color || '') === c;
+      const ring = sel ? 'ring-2 ring-offset-1 ring-indigo-400 dark:ring-offset-slate-900' : '';
+      if (!c) return `<button type="button" title="No color" onclick="setNoteColor('${note.id}','')" class="w-6 h-6 rounded-full border border-slate-300 dark:border-slate-600 grid place-items-center ${ring}"><i class="fa-solid fa-ban text-[10px] text-slate-400"></i></button>`;
+      return `<button type="button" title="Color" onclick="setNoteColor('${note.id}','${c}')" class="w-6 h-6 rounded-full border border-black/10 ${ring}" style="background:${c}"></button>`;
+    }).join('');
+    return `
+    <div class="flex items-center justify-between gap-3 mb-3">
+      <input id="noteTitleInput" value="${escapeHtml(note.title || '')}" oninput="_noteAutosave('${note.id}')" maxlength="120" placeholder="Note title"
+        class="flex-1 min-w-0 bg-transparent text-xl font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none" />
+      <div class="flex items-center gap-1 shrink-0">
+        <button type="button" title="${note.pinned ? 'Unpin' : 'Pin'}" onclick="toggleNotePin('${note.id}')" class="w-8 h-8 rounded-lg grid place-items-center hover:bg-slate-100 dark:hover:bg-slate-700 ${note.pinned ? 'text-amber-500' : 'text-slate-400'}"><i class="fa-solid fa-thumbtack"></i></button>
+        <button type="button" title="Move to Trash" onclick="deleteNote('${note.id}')" class="w-8 h-8 rounded-lg grid place-items-center text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-500"><i class="fa-solid fa-trash-can"></i></button>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 mb-3">
+      <div class="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+        <button type="button" title="Bold" onclick="applyNoteMdTool('bold')" class="${_noteMdBtn}"><i class="fa-solid fa-bold"></i></button>
+        <button type="button" title="Italic" onclick="applyNoteMdTool('italic')" class="${_noteMdBtn}"><i class="fa-solid fa-italic"></i></button>
+        <button type="button" title="Heading" onclick="applyNoteMdTool('h')" class="${_noteMdBtn}"><i class="fa-solid fa-heading"></i></button>
+        <button type="button" title="Bulleted list" onclick="applyNoteMdTool('ul')" class="${_noteMdBtn}"><i class="fa-solid fa-list-ul"></i></button>
+        <button type="button" title="Numbered list" onclick="applyNoteMdTool('ol')" class="${_noteMdBtn}"><i class="fa-solid fa-list-ol"></i></button>
+        <button type="button" title="Link" onclick="applyNoteMdTool('link')" class="${_noteMdBtn}"><i class="fa-solid fa-link"></i></button>
+      </div>
+      <div class="flex items-center gap-1.5 ml-auto">${colors}</div>
+      <button type="button" id="notePreviewToggle" onclick="toggleNotePreview()" class="btn-secondary !py-1.5 !px-3 text-xs"><i class="fa-solid fa-eye-slash mr-1"></i>Hide preview</button>
+    </div>
+    <div id="noteEditPanes" class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <textarea id="noteBodyInput" oninput="_noteAutosave('${note.id}')" placeholder="Start writing… Markdown supported."
+        class="ui-input text-sm font-mono leading-relaxed resize-y" style="min-height:340px;">${escapeHtml(note.body || '')}</textarea>
+      <div id="notePreview" class="jdin-md border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50/60 dark:bg-slate-800/40 overflow-auto" style="min-height:340px;">${renderMarkdown(note.body || '')}</div>
+    </div>
+    <div id="noteEditorMeta" class="text-[11px] text-slate-400 mt-3">${escapeHtml(_noteUpdatedText(note))}</div>`;
+  }
+  function renderNoteEmptyState() {
+    const has = (state.notes || []).length > 0;
+    return `<div class="flex flex-col items-center justify-center text-center text-slate-400 py-16" style="min-height:340px;">
+      <i class="fa-regular fa-note-sticky text-4xl mb-3 opacity-50"></i>
+      <p class="text-sm font-semibold text-slate-500 dark:text-slate-400">${has ? 'Select a note to edit' : 'No notes yet'}</p>
+      <p class="text-xs mt-1">${has ? 'Pick one from the list, or create a new one.' : 'Create your first note to get started.'}</p>
+      <button type="button" onclick="createNote()" class="btn-primary mt-4 !py-2 !px-4 text-sm"><i class="fa-solid fa-plus mr-1"></i>New Note</button>
+    </div>`;
+  }
+  function _refreshNotesListOnly() {
+    const listEl = document.getElementById('noteList'); if (!listEl) return;
+    const notes = visibleNotes();
+    const empty = (state.search || '').trim() ? 'No notes match your search.' : 'No notes yet. Create your first note.';
+    listEl.innerHTML = notes.length ? notes.map(renderNoteCard).join('') : `<div class="text-sm text-slate-500 text-center py-8">${empty}</div>`;
+    const countEl = document.getElementById('noteCount'); if (countEl) countEl.textContent = (state.notes || []).length;
+  }
+  function renderNotes() {
+    const listEl = document.getElementById('noteList');
+    const editorEl = document.getElementById('noteEditor');
+    if (!listEl || !editorEl) return;
+    _refreshNotesListOnly();
+    const note = state.notes.find(n => n.id === state.editingNoteId);
+    editorEl.innerHTML = note ? renderNoteEditor(note) : renderNoteEmptyState();
+  }
+  window.renderNotes = renderNotes;
+  window.createNote = createNote;
+  window.openNote = openNote;
+  window.closeNoteEditor = closeNoteEditor;
+  window._noteAutosave = _noteAutosave;
+  window.toggleNotePin = toggleNotePin;
+  window.setNoteColor = setNoteColor;
+  window.deleteNote = deleteNote;
+  window.applyNoteMdTool = applyNoteMdTool;
+  window.toggleNotePreview = toggleNotePreview;
 
   function renderTodos() {
     const sortEl = document.getElementById('myTodoSort');
@@ -5374,8 +5640,8 @@
   function _entityTs(e) { const t = e && (e.updatedAt || e.createdAt); const ms = t ? Date.parse(t) : 0; return Number.isFinite(ms) ? ms : 0; }
   function _tombTs(t) { const ms = t && t.deletedAt ? Date.parse(t.deletedAt) : 0; return Number.isFinite(ms) ? ms : 0; }
   function _canonicalJSON(e) { if (!e || typeof e !== 'object') return String(e); const { updatedAt, ...rest } = e; try { return JSON.stringify(rest); } catch (_) { return String(Math.random()); } }
-  function _allEntities(st) { return [...(st.todos || []), ...(st.trash || []), ...(st.projects || []), ...(st.reminders || []), ...(st.habits || [])]; }
-  function _coreSig(st) { try { return JSON.stringify([st.todos, st.trash, st.projects, st.reminders, st.habits, st.tombstones]); } catch (_) { return Math.random() + ''; } }
+  function _allEntities(st) { return [...(st.todos || []), ...(st.trash || []), ...(st.projects || []), ...(st.reminders || []), ...(st.habits || []), ...(st.notes || [])]; }
+  function _coreSig(st) { try { return JSON.stringify([st.todos, st.trash, st.projects, st.reminders, st.habits, st.notes, st.tombstones]); } catch (_) { return Math.random() + ''; } }
 
   // Stamp updatedAt on changed/new items and add tombstones for vanished ones.
   function stampChangesAndTombstones() {
@@ -5481,10 +5747,12 @@
     const taskM = mergeLiveAndTrash(st.todos, _trashOfKind(lt, 'task'), remote.todos, _trashOfKind(rt, 'task'), tombMap, 'task');
     const projM = mergeLiveAndTrash(st.projects, _trashOfKind(lt, 'project'), remote.projects, _trashOfKind(rt, 'project'), tombMap, 'project');
     const habM = mergeLiveAndTrash(st.habits, _trashOfKind(lt, 'habit'), remote.habits, _trashOfKind(rt, 'habit'), tombMap, 'habit');
+    const noteM = mergeLiveAndTrash(st.notes, _trashOfKind(lt, 'note'), remote.notes, _trashOfKind(rt, 'note'), tombMap, 'note');
     st.todos = taskM.live;
     st.projects = projM.live;
     st.habits = habM.live;
-    st.trash = [...taskM.trash, ...projM.trash, ...habM.trash];
+    st.notes = noteM.live;
+    st.trash = [...taskM.trash, ...projM.trash, ...habM.trash, ...noteM.trash];
     st.reminders = mergeList(st.reminders, remote.reminders, tombMap);
     st.tombstones = [...tombMap.values()];
   }
@@ -5585,6 +5853,7 @@
           state.projects = Array.isArray(saved.projects) ? saved.projects : [];
           state.reminders = Array.isArray(saved.reminders) ? saved.reminders : [];
           state.habits = Array.isArray(saved.habits) ? saved.habits : [];
+          state.notes = Array.isArray(saved.notes) ? saved.notes : [];
           state.trash = Array.isArray(saved.trash) ? saved.trash : [];
           state.tombstones = Array.isArray(saved.tombstones) ? saved.tombstones : (state.tombstones || []);
           state.selectedProjectId = saved.selectedProjectId || null;
@@ -5635,6 +5904,7 @@
                 state.projects = mergeArr('projects');
                 state.reminders = mergeArr('reminders');
                 state.habits = mergeArr('habits');
+                state.notes = mergeArr('notes');
                 state.trash = mergeArr('trash');
               }
               state.selectedProjectId = remote.selectedProjectId !== undefined ? remote.selectedProjectId : state.selectedProjectId;
@@ -6091,6 +6361,10 @@
       const h = { ...item }; delete h.deletedAt; delete h._kind;
       state.habits.unshift(h);
       if (window.pbRestoreHabit) window.pbRestoreHabit(h);
+    } else if (kind === 'note') {
+      const n = { ...item }; delete n.deletedAt; delete n._kind;
+      state.notes.unshift(n);
+      if (window.pbRestoreNote) window.pbRestoreNote(n);
     } else if (kind === 'project') {
       const p = { ...item }; delete p.deletedAt; delete p._kind;
       state.projects.unshift(p);
@@ -6114,6 +6388,8 @@
     const kind = item._kind || 'task';
     if (kind === 'habit') {
       if (window.pbDeleteHabitRow) window.pbDeleteHabitRow(item.id);
+    } else if (kind === 'note') {
+      if (window.pbDeleteNoteRow) window.pbDeleteNoteRow(item.id);
     } else if (kind === 'project') {
       if (item.isRoadmap) {
         const steps = state.trash.filter(t => (t._kind || 'task') === 'task' && t.projectId === item.id);
@@ -6131,7 +6407,7 @@
   }
   function _trashItemNoun(item, lower) {
     const kind = item._kind || 'task';
-    const n = kind === 'task' ? 'Task' : kind === 'habit' ? 'Habit' : (item.isRoadmap ? 'Roadmap' : 'Project');
+    const n = kind === 'task' ? 'Task' : kind === 'habit' ? 'Habit' : kind === 'note' ? 'Note' : (item.isRoadmap ? 'Roadmap' : 'Project');
     return lower ? n.toLowerCase() : n;
   }
 
@@ -7746,6 +8022,7 @@
       state.projects = Array.isArray(data.projects) ? data.projects : [];
       state.reminders = Array.isArray(data.reminders) ? data.reminders : [];
       state.habits = Array.isArray(data.habits) ? data.habits : [];
+      state.notes = Array.isArray(data.notes) ? data.notes : [];
       state.trash = Array.isArray(data.trash) ? data.trash.map(normalizeTrashEntry) : [];
       state.selectedProjectId = data.selectedProjectId || null;
       state.myTodoSort = data.myTodoSort || state.myTodoSort || 'created';
@@ -8312,6 +8589,7 @@
     if (shown('view-calendar') && typeof renderCalendar === 'function') renderCalendar();
     if (shown('view-upcoming') && typeof renderUpcoming === 'function') renderUpcoming();
     if (shown('view-habits') && typeof renderHabits === 'function') renderHabits();
+    if (shown('view-notes') && typeof window.renderNotes === 'function') window.renderNotes();
     if (typeof renderAnalytics === 'function') renderAnalytics(); // already self-gated on its view
 
     renderBulkBars();
@@ -8356,7 +8634,7 @@
   // project. The timeline view is dynamic and skipped to avoid blank
   // screens; anything not in the allow-list falls back to Home.
   function restoreNavView() {
-    const SAFE = ['home','todo','mytodo','project','reminders','calendar','upcoming','habits','analytics','settings','trash'];
+    const SAFE = ['home','todo','mytodo','project','reminders','calendar','upcoming','habits','notes','analytics','settings','trash'];
     let v;
     try { v = safeLS.getItem('jdin_active_view'); } catch (_) { v = null; }
     if (!v || v === 'home' || !SAFE.includes(v) || !document.getElementById('view-' + v)) return;
