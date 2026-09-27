@@ -236,33 +236,57 @@
     /* ================================================================ */
 
     /* ── Notes editor (rich) ───────────────────────────────────────── */
-    .note-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
-    .note-tool-group { display: flex; align-items: center; gap: 0.1rem; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 0.7rem; padding: 0.22rem; }
-    .note-tool-btn { width: 2.15rem; height: 2.15rem; display: grid; place-items: center; border: none; background: transparent; color: var(--muted); font-size: 0.82rem; border-radius: 0.5rem; cursor: pointer; transition: all 140ms ease; }
-    .note-tool-btn:hover { background: var(--surface-strong); color: var(--accent); box-shadow: var(--shadow-sm); }
-    .note-tool-btn:active { transform: scale(0.92); }
-    .note-tool-btn.danger:hover { color: var(--danger); }
+    .note-editor-card { padding: 0 !important; display: flex; flex-direction: column; min-height: 560px; }
+    .note-editor-card > #noteEditor { display: flex; flex-direction: column; flex: 1; }
+    /* slim OneNote-style ribbon */
+    .note-ribbon { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 0.45rem 0.75rem; border-bottom: 1px solid var(--line); background: var(--surface-strong); border-radius: inherit; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+    html.dark .note-ribbon { background: var(--surface-soft); }
+    .note-rb { width: 2rem; height: 2rem; display: grid; place-items: center; border: none; background: transparent; color: var(--muted); font-size: 0.85rem; border-radius: 0.45rem; cursor: pointer; transition: background 120ms ease, color 120ms ease; }
+    .note-rb:hover { background: color-mix(in srgb, var(--ink), transparent 92%); color: var(--ink); }
+    .note-rb.is-active { background: color-mix(in srgb, var(--accent), transparent 85%); color: var(--accent); }
+    .note-rb.danger:hover { color: var(--danger); background: color-mix(in srgb, var(--danger), transparent 88%); }
+    .note-rb-txt { font-weight: 800; font-size: 0.75rem; letter-spacing: -0.02em; }
+    .note-rb-sep { width: 1px; height: 1.2rem; background: var(--line); margin: 0 0.3rem; }
+    .note-rb-spacer { flex: 1; }
+    .note-color-wrap { position: relative; }
+    .note-color-dot { width: 0.95rem; height: 0.95rem; border-radius: 9999px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+    .note-color-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; display: flex; gap: 0.4rem; padding: 0.55rem; border-radius: 0.8rem; background: var(--surface-strong); border: 1px solid var(--line); box-shadow: var(--shadow-lg, 0 10px 30px rgba(0,0,0,.18)); }
+    .note-color-menu.hidden { display: none; }
+    .note-color-menu .color-swatch { width: 24px; height: 24px; }
+    /* the page itself */
+    .note-page { flex: 1; display: flex; flex-direction: column; padding: 1.75rem 2rem 1rem; cursor: text; }
+    @media (max-width: 640px) { .note-page { padding: 1.25rem 1.1rem 0.75rem; } }
+    .note-page-date { font-size: 0.78rem; color: var(--muted); margin: 0.35rem 0 1.25rem; padding-bottom: 0.9rem; border-bottom: 1px solid var(--line); }
+    .note-page-meta { font-size: 0.7rem; color: var(--muted); opacity: 0.8; padding: 0.6rem 2rem 1rem; }
+    .note-rich { flex: 1; min-height: 320px; outline: none; color: var(--ink); font-size: 0.97rem; line-height: 1.7; position: relative; word-wrap: break-word; }
+    .note-rich.is-empty::before { content: attr(data-placeholder); position: absolute; top: 0; left: 0; color: var(--muted); opacity: 0.6; pointer-events: none; }
+    .note-rich > :first-child { margin-top: 0; }
+    .note-rich p { margin: 0; min-height: 1.7em; }
+    .note-rich h1 { font-size: 1.5rem; font-weight: 800; line-height: 1.3; margin: 0.9rem 0 0.35rem; letter-spacing: -0.01em; }
+    .note-rich h2 { font-size: 1.2rem; font-weight: 700; line-height: 1.35; margin: 0.75rem 0 0.25rem; }
+    .note-rich h3 { font-size: 1.05rem; font-weight: 700; margin: 0.6rem 0 0.2rem; }
+    .note-rich ul { list-style: disc; padding-left: 1.5rem; margin: 0.2rem 0; }
+    .note-rich ol { list-style: decimal; padding-left: 1.5rem; margin: 0.2rem 0; }
+    .note-rich li { margin: 0.1rem 0; padding-left: 0.15rem; }
+    .note-rich a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+    .note-rich code { background: var(--surface-soft); border: 1px solid var(--line); padding: 0.05rem 0.3rem; border-radius: 0.3rem; font-size: 0.88em; }
+    .note-rich span[style*="background-color"], .note-rich mark, .jdin-md mark { color: #1f2937; border-radius: 0.2rem; padding: 0 0.1rem; }
+    .jdin-md mark { background: #fde68a; }
+    /* to-do checklist (shared with task-note markdown) */
+    .md-checklist { list-style: none !important; padding-left: 0 !important; }
+    .md-checklist > li { position: relative; padding-left: 1.75rem !important; }
+    .md-checklist > li::before { content: ''; position: absolute; left: 0.1rem; top: 0.32em; width: 1.05rem; height: 1.05rem; border-radius: 0.3rem; border: 1.5px solid var(--line-strong); background: var(--surface-strong); cursor: pointer; transition: all 120ms ease; }
+    .md-checklist > li[data-checked="true"]::before { background: var(--accent); border-color: var(--accent); }
+    .md-checklist > li[data-checked="true"]::after { content: ''; position: absolute; left: 0.47rem; top: 0.42em; width: 0.32rem; height: 0.6rem; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); pointer-events: none; }
+    .md-checklist > li[data-checked="true"] { color: var(--muted); text-decoration: line-through; }
     .note-card { border: 1px solid var(--line); background: var(--surface-soft); transition: all 150ms ease; }
     .note-card:hover { border-color: color-mix(in srgb, var(--accent), transparent 55%); background: var(--surface-strong); box-shadow: var(--shadow-sm); }
     .note-color-none { background: var(--surface-strong); box-shadow: inset 0 0 0 1px var(--line-strong); }
     .note-color-none::before { content: ''; position: absolute; inset: 7px; border-radius: 9999px; background: linear-gradient(45deg, transparent 45%, var(--danger) 45%, var(--danger) 55%, transparent 55%); opacity: 0.75; }
     .note-color-none.selected::after { content: ''; }
-    .note-sheet { display: grid; grid-template-columns: 1fr; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface-strong); box-shadow: var(--shadow-sm); overflow: hidden; }
-    html.dark .note-sheet { background: var(--surface-soft); }
-    .note-title-input { width: 100%; border: none; background: transparent; color: var(--ink); font-size: 1.55rem; font-weight: 800; padding: 0; }
+    .note-title-input { width: 100%; border: none; background: transparent; color: var(--ink); font-size: 1.9rem; font-weight: 700; letter-spacing: -0.015em; padding: 0; }
     .note-title-input:focus { outline: none; }
-    .note-title-input::placeholder { color: #cbd5e1; font-weight: 800; }
-    html.dark .note-title-input::placeholder { color: #3f3f46; }
-    .note-body-input { width: 100%; border: none; background: transparent; resize: vertical; color: var(--ink); padding: 1.15rem 1.35rem; line-height: 1.75; font-size: 0.95rem; min-height: 300px; }
-    .note-body-input:focus { outline: none; }
-    .note-body-input::placeholder { color: #94a3b8; font-style: italic; }
-    .note-preview-pane { padding: 1.15rem 1.35rem; min-height: 300px; overflow: auto; }
-    .note-sheet.split .note-preview-pane { border-top: 1px solid var(--line); }
-    @media (min-width: 1024px) {
-      .note-sheet.split { grid-template-columns: 1fr 1fr; }
-      .note-sheet.split .note-preview-pane { border-top: none; border-left: 1px solid var(--line); }
-    }
-    .note-preview-pane .jdin-md-empty { color: var(--muted); font-style: italic; opacity: 0.7; }
+    .note-title-input::placeholder { color: var(--muted); opacity: 0.45; font-weight: 700; }
     /* ================================================================ */
 
     ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -1760,7 +1784,7 @@
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
             <div>
               <h2 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Notes</h2>
-              <p class="text-sm text-slate-500 mt-1">Jot down anything. Markdown supported, synced across your devices.</p>
+              <p class="text-sm text-slate-500 mt-1">Jot down anything. Rich formatting and checklists, synced across your devices.</p>
             </div>
             <button type="button" onclick="createNote()" class="btn-primary self-start sm:self-auto"><i class="fa-solid fa-plus mr-2"></i>New Note</button>
           </div>
@@ -1772,7 +1796,7 @@
               </div>
               <div id="noteList" class="space-y-2"></div>
             </div>
-            <div class="lg:col-span-2 card p-5 sm:p-6">
+            <div class="lg:col-span-2 card note-editor-card">
               <div id="noteEditor"></div>
             </div>
           </div>
@@ -4703,7 +4727,10 @@
   // ── Safe markdown for task descriptions ──
   // Notes are STORED as plain markdown text (no HTML persisted). Rendering escapes
   // first, then applies a small whitelist, so there is no stored-HTML XSS surface.
-  function renderMarkdown(md) {
+  // opts.note: rich Notes editor mode — real h1/h2/h3, blank lines kept as empty
+  // paragraphs (so the WYSIWYG round-trip is lossless), no "Nothing to preview".
+  function renderMarkdown(md, opts) {
+    const noteMode = !!(opts && opts.note);
     const safeUrl = (u) => /^(https?:\/\/|mailto:)/i.test(u) ? u : '#';
     // formatting applied to text that has ALREADY been HTML-escaped
     const fmt = (s) => {
@@ -4712,6 +4739,9 @@
       s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
       s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
       s = s.replace(/(^|[^\w])_([^_\n]+)_/g, '$1<em>$2</em>');
+      s = s.replace(/~~([^~\n]+)~~/g, '<s>$1</s>');
+      s = s.replace(/\+\+([^+\n]+)\+\+/g, '<u>$1</u>');
+      s = s.replace(/==([^=\n]+)==/g, '<mark>$1</mark>');
       return s;
     };
     // Handle links on the RAW text so URL validation sees the real URL (escapeHtml
@@ -4731,18 +4761,22 @@
     };
     const lines = String(md || '').replace(/\r\n/g, '\n').split('\n');
     let html = '', listType = null;
-    const closeList = () => { if (listType) { html += listType === 'ul' ? '</ul>' : '</ol>'; listType = null; } };
+    const closeList = () => { if (listType) { html += listType === 'ol' ? '</ol>' : '</ul>'; listType = null; } };
+    const h = noteMode ? ['h1', 'h2', 'h3'] : ['h3', 'h3', 'h4'];
+    const cell = (s) => inline(s) || (noteMode ? '<br>' : '');
     for (const line of lines) {
       let m;
-      if (/^\s*###\s+/.test(line)) { closeList(); html += `<h4>${inline(line.replace(/^\s*###\s+/, ''))}</h4>`; continue; }
-      if (/^\s*##\s+/.test(line)) { closeList(); html += `<h3>${inline(line.replace(/^\s*##\s+/, ''))}</h3>`; continue; }
-      if (/^\s*#\s+/.test(line)) { closeList(); html += `<h3>${inline(line.replace(/^\s*#\s+/, ''))}</h3>`; continue; }
-      if ((m = line.match(/^\s*[-*]\s+(.*)$/))) { if (listType !== 'ul') { closeList(); html += '<ul>'; listType = 'ul'; } html += `<li>${inline(m[1])}</li>`; continue; }
-      if ((m = line.match(/^\s*\d+\.\s+(.*)$/))) { if (listType !== 'ol') { closeList(); html += '<ol>'; listType = 'ol'; } html += `<li>${inline(m[1])}</li>`; continue; }
-      if (/^\s*$/.test(line)) { closeList(); continue; }
+      if (/^\s*###\s+/.test(line)) { closeList(); html += `<${h[2]}>${cell(line.replace(/^\s*###\s+/, ''))}</${h[2]}>`; continue; }
+      if (/^\s*##\s+/.test(line)) { closeList(); html += `<${h[1]}>${cell(line.replace(/^\s*##\s+/, ''))}</${h[1]}>`; continue; }
+      if (/^\s*#\s+/.test(line)) { closeList(); html += `<${h[0]}>${cell(line.replace(/^\s*#\s+/, ''))}</${h[0]}>`; continue; }
+      if ((m = line.match(/^\s*[-*]\s+\[([ xX])\]\s?(.*)$/))) { if (listType !== 'task') { closeList(); html += '<ul class="md-checklist">'; listType = 'task'; } html += `<li data-checked="${m[1] !== ' '}">${cell(m[2])}</li>`; continue; }
+      if ((m = line.match(/^\s*[-*]\s+(.*)$/))) { if (listType !== 'ul') { closeList(); html += '<ul>'; listType = 'ul'; } html += `<li>${cell(m[1])}</li>`; continue; }
+      if ((m = line.match(/^\s*\d+\.\s+(.*)$/))) { if (listType !== 'ol') { closeList(); html += '<ol>'; listType = 'ol'; } html += `<li>${cell(m[1])}</li>`; continue; }
+      if (/^\s*$/.test(line)) { closeList(); if (noteMode) html += '<p><br></p>'; continue; }
       closeList(); html += `<p>${inline(line)}</p>`;
     }
     closeList();
+    if (noteMode) return html.replace(/(<p><br><\/p>)+$/, '');
     return html || '<span class="text-slate-400 italic">Nothing to preview.</span>';
   }
 
@@ -5344,24 +5378,39 @@
 
   function _noteUpdatedText(note) {
     const iso = note && (note.updatedAt || note.createdAt); if (!iso) return '';
-    try { return 'Edited ' + formatDate(iso.split('T')[0], iso.length > 11 ? iso.slice(11, 16) : ''); } catch (_) { return ''; }
+    try {
+      // stamps are UTC ISO strings — format in local time, not by slicing
+      const d = new Date(iso); const pad = (n) => String(n).padStart(2, '0');
+      return 'Edited ' + formatDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, `${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    } catch (_) { return ''; }
   }
   function _noteFooterText(note) {
-    const body = (note && note.body) || '';
-    const words = body.trim() ? body.trim().split(/\s+/).length : 0;
+    const text = _notePlainText(note && note.body);
+    const words = text ? text.split(/\s+/).length : 0;
     const stamp = _noteUpdatedText(note);
     return `${words} word${words === 1 ? '' : 's'}${stamp ? '  ·  ' + stamp : ''}`;
   }
-  function _noteSnippet(body) {
+  function _notePlainText(body) {
     return String(body || '')
       .replace(/```[\s\S]*?```/g, '')
+      .replace(/^\s*[-*]\s+\[[ xX]\]\s?/gm, '')
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-      .replace(/[#>*_`~-]/g, '')
+      .replace(/^\s*\d+\.\s+/gm, '')
+      .replace(/[#>*_`~+=]|(^|\s)-(?=\s)/g, '$1')
       .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 120);
+      .trim();
   }
-
+  function _noteCreatedText(note) {
+    const iso = note && (note.createdAt || note.updatedAt); if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+        + '  ·  ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    } catch (_) { return ''; }
+  }
+  function _noteSnippet(body) {
+    return _notePlainText(body).slice(0, 120);
+  }
   function createNote() {
     const now = new Date().toISOString();
     const note = { id: generatePBId(), title: '', body: '', color: '', pinned: false, tags: [], createdAt: now, updatedAt: now };
@@ -5379,21 +5428,323 @@
   }
   function closeNoteEditor() { state.editingNoteId = null; renderNotes(); }
 
-  // Debounced autosave while typing: write into the note, live-update the
-  // preview + "edited" stamp without rebuilding the editor (keeps the caret),
-  // then mirror + persist on a short delay.
+  // ── Rich (WYSIWYG) note editor ──────────────────────────────────────────
+  // The page is a contenteditable, but notes are still STORED as markdown:
+  // every edit is serialized back with _noteHtmlToMd, and loading goes through
+  // the escaping renderMarkdown(…, {note:true}), so no raw HTML is persisted.
+  const NOTE_HILITE = 'rgb(253, 230, 138)';
+  const NOTE_BLOCK_SEL = 'p,div,ul,ol,li,h1,h2,h3,h4,h5,h6,blockquote,pre,table,section,article';
+  const NOTE_SKIP_TAGS = /^(SCRIPT|STYLE|HEAD|META|TITLE|NOSCRIPT|TEMPLATE|LINK)$/;
+
+  function _noteMdToEditorHtml(md) {
+    // highlights live as inline background spans while editing so the native
+    // hiliteColor command can toggle them
+    return renderMarkdown(md, { note: true })
+      .replace(/<mark>/g, `<span style="background-color: ${NOTE_HILITE};">`)
+      .replace(/<\/mark>/g, '</span>');
+  }
+
+  function _noteHtmlToMd(root) {
+    const lines = [];
+    const isOn = (v, re) => re.test(String(v || ''));
+    const inlNodes = (nodes) => {
+      let out = '';
+      nodes.forEach(n => {
+        if (n.nodeType === 3) { out += n.nodeValue.replace(/ /g, ' ').replace(/[\r\n]+/g, ' '); return; }
+        if (n.nodeType !== 1 || NOTE_SKIP_TAGS.test(n.tagName)) return;
+        const tag = n.tagName;
+        if (tag === 'BR') { out += '\n'; return; }
+        let s = inlNodes(Array.from(n.childNodes));
+        if (/^(P|DIV|H[1-6]|LI|BLOCKQUOTE|PRE)$/.test(tag)) { out += '\n' + s + '\n'; return; }
+        if (!s.trim()) { out += s; return; }
+        if (tag === 'A') {
+          const href = n.getAttribute('href') || '';
+          out += /^(https?:|mailto:)/i.test(href) ? `[${s.replace(/\n/g, ' ')}](${href.replace(/[()\s]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'))})` : s;
+          return;
+        }
+        const st = n.style || {};
+        const deco = (st.textDecorationLine || '') + ' ' + (st.textDecoration || '');
+        const marks = [];
+        if (tag === 'CODE') marks.push('`');
+        if (((tag === 'B' || tag === 'STRONG') && !isOn(st.fontWeight, /^(normal|[1-5]00)$/)) || isOn(st.fontWeight, /^(bold|bolder|[6-9]00)$/)) marks.push('**');
+        if (tag === 'I' || tag === 'EM' || st.fontStyle === 'italic') marks.push('*');
+        if (tag === 'U' || /underline/.test(deco)) marks.push('++');
+        if (tag === 'S' || tag === 'STRIKE' || tag === 'DEL' || /line-through/.test(deco)) marks.push('~~');
+        if (tag === 'MARK' || (st.backgroundColor && !/^(transparent|rgba\(0, 0, 0, 0\)|initial|inherit)$/.test(st.backgroundColor))) marks.push('==');
+        // wrap each line separately, keeping outer whitespace outside the markers
+        s = s.split('\n').map(line => {
+          const m = line.match(/^(\s*)([\s\S]*?)(\s*)$/);
+          if (!m[2]) return line;
+          return m[1] + marks.join('') + m[2] + marks.slice().reverse().join('') + m[3];
+        }).join('\n');
+        out += s;
+      });
+      return out;
+    };
+    const emit = (text, prefix) => {
+      String(text).replace(/\n$/, '').split('\n').forEach(l => {
+        const c = l.replace(/\s+$/, '');
+        lines.push(c.trim() ? prefix + c : '');
+      });
+    };
+    const list = (el, check) => {
+      let i = 1;
+      el.childNodes.forEach(li => {
+        if (li.nodeType !== 1) return;
+        if (li.tagName === 'UL' || li.tagName === 'OL') { list(li, li.classList.contains('md-checklist')); return; }
+        const inline = [], nested = [];
+        li.childNodes.forEach(c => (c.nodeType === 1 && (c.tagName === 'UL' || c.tagName === 'OL')) ? nested.push(c) : inline.push(c));
+        const prefix = check ? `- [${li.getAttribute('data-checked') === 'true' ? 'x' : ' '}] ` : el.tagName === 'OL' ? `${i++}. ` : '- ';
+        const text = inlNodes(inline).replace(/\n+/g, ' ').trim();
+        lines.push(prefix + text);
+        nested.forEach(c => list(c, c.classList.contains('md-checklist')));
+      });
+    };
+    const walk = (parent) => {
+      let run = [];
+      const flush = () => {
+        if (!run.length) return;
+        const t = inlNodes(run); run = [];
+        if (t.trim() || t.includes('\n')) emit(t, '');
+      };
+      parent.childNodes.forEach(n => {
+        if (n.nodeType !== 1) { if (n.nodeType === 3) run.push(n); return; }
+        const tag = n.tagName;
+        if (NOTE_SKIP_TAGS.test(tag)) return;
+        if (/^H[1-6]$/.test(tag)) { flush(); emit(inlNodes(Array.from(n.childNodes)), '#'.repeat(Math.min(3, +tag[1])) + ' '); }
+        else if (tag === 'UL' || tag === 'OL') { flush(); list(n, n.classList.contains('md-checklist')); }
+        else if (n.querySelector(NOTE_BLOCK_SEL)) { flush(); walk(n); }
+        else if (/^(P|DIV|LI|BLOCKQUOTE|PRE|SECTION|ARTICLE|TR)$/.test(tag)) {
+          flush();
+          const t = inlNodes(Array.from(n.childNodes));
+          if (t.trim()) emit(t, ''); else lines.push('');
+        }
+        else run.push(n);
+      });
+      flush();
+    };
+    walk(root);
+    return lines.join('\n').replace(/\n+$/, '');
+  }
+
+  function _noteEditorEl() { return document.getElementById('noteBodyEditor'); }
+  function _noteClosest(sel) {
+    const ed = _noteEditorEl(); const s = window.getSelection();
+    if (!ed || !s || !s.rangeCount) return null;
+    let n = s.anchorNode; if (n && n.nodeType === 3) n = n.parentNode;
+    const hit = n && n.closest ? n.closest(sel) : null;
+    return hit && ed.contains(hit) && hit !== ed ? hit : null;
+  }
+  function _noteInChecklist() {
+    const li = _noteClosest('li');
+    return !!(li && li.parentElement && li.parentElement.classList.contains('md-checklist'));
+  }
+  function _noteIsEmpty(ed) { return !ed.textContent.trim() && !ed.querySelector('li'); }
+
+  function _noteOnInput(id, ev) {
+    const ed = _noteEditorEl(); if (!ed) return;
+    // a new checklist row split from a ticked one shouldn't start ticked
+    if (ev && ev.inputType === 'insertParagraph') {
+      const li = _noteClosest('li');
+      if (li && li.parentElement.classList.contains('md-checklist') && !li.textContent.trim()) li.setAttribute('data-checked', 'false');
+    }
+    ed.classList.toggle('is-empty', _noteIsEmpty(ed));
+    _noteAutosave(id);
+    _noteSyncToolbar();
+  }
+
+  function noteCmd(action) {
+    const ed = _noteEditorEl(); if (!ed) return;
+    ed.focus();
+    try { document.execCommand('styleWithCSS', false, false); } catch (_) {}
+    if (action === 'h1' || action === 'h2') {
+      const cur = String(document.queryCommandValue('formatBlock') || '').toLowerCase().replace(/[<>]/g, '');
+      document.execCommand('formatBlock', false, cur === action ? '<p>' : `<${action}>`);
+    } else if (action === 'insertUnorderedList' && _noteInChecklist()) {
+      const ul = _noteClosest('li').parentElement;
+      ul.classList.remove('md-checklist');
+      ul.querySelectorAll(':scope > li').forEach(li => li.removeAttribute('data-checked'));
+    } else if (action === 'insertUnorderedList') {
+      document.execCommand(action);
+      // Chrome merges a new list into an adjacent one; keep bullets out of a checklist above
+      const li = _noteClosest('li');
+      if (li && li.parentElement.classList.contains('md-checklist') && !li.hasAttribute('data-checked')) _noteIsolateListItem(li, false);
+    } else if (action === 'check') {
+      if (_noteInChecklist()) document.execCommand('insertUnorderedList');
+      else {
+        const li = _noteClosest('li');
+        const wasBullet = !!(li && li.parentElement.tagName === 'UL');
+        if (!wasBullet) document.execCommand('insertUnorderedList');
+        const li2 = _noteClosest('li');
+        if (li2 && li2.parentElement.tagName === 'UL') {
+          if (!wasBullet) { li2.setAttribute('data-checked', 'false'); _noteIsolateListItem(li2, true); }
+          const ul = li2.parentElement;
+          ul.classList.add('md-checklist');
+          ul.querySelectorAll(':scope > li').forEach(x => { if (!x.hasAttribute('data-checked')) x.setAttribute('data-checked', 'false'); });
+        }
+      }
+    } else if (action === 'highlight') {
+      const on = String(document.queryCommandValue('hiliteColor') || document.queryCommandValue('backColor') || '').replace(/\s/g, '') === NOTE_HILITE.replace(/\s/g, '');
+      document.execCommand('hiliteColor', false, on ? 'transparent' : NOTE_HILITE);
+    } else if (action === 'link') {
+      _noteInsertLink(); return;
+    } else {
+      document.execCommand(action);
+    }
+    _noteUnwrapList();
+    if (state.editingNoteId) _noteOnInput(state.editingNoteId);
+  }
+  // Move one <li> into its own list of the wanted kind (checklist vs bullets),
+  // splitting the list it was merged into; keeps the caret.
+  function _noteIsolateListItem(li, check) {
+    const ul = li.parentElement; if (!ul || ul.tagName !== 'UL') return;
+    if (ul.classList.contains('md-checklist') === check) return;
+    const s = window.getSelection(); const node = s.anchorNode, off = s.anchorOffset;
+    const mk = (isCheck) => { const u = document.createElement('ul'); if (isCheck) u.className = 'md-checklist'; return u; };
+    const after = []; for (let n = li.nextSibling; n; n = n.nextSibling) after.push(n);
+    const mid = mk(check); ul.after(mid); mid.appendChild(li);
+    if (after.length) { const tail = mk(!check); after.forEach(x => tail.appendChild(x)); mid.after(tail); }
+    if (!ul.children.length) ul.remove();
+    try { const r = document.createRange(); r.setStart(node, off); r.collapse(true); s.removeAllRanges(); s.addRange(r); } catch (_) {}
+  }
+  // Chrome inserts lists *inside* the current <p> (invalid <p><ul>), which then
+  // nests every following paragraph. Lift the list out, keeping the caret.
+  function _noteUnwrapList() {
+    const li = _noteClosest('li'); const list = li && li.parentElement;
+    const p = list && list.parentElement;
+    if (!p || p.tagName !== 'P' || !_noteEditorEl().contains(p)) return;
+    const s = window.getSelection(); const node = s.anchorNode, off = s.anchorOffset;
+    p.replaceWith(...p.childNodes);
+    try { const r = document.createRange(); r.setStart(node, off); r.collapse(true); s.removeAllRanges(); s.addRange(r); } catch (_) {}
+  }
+
+  function _noteInsertLink() {
+    const ed = _noteEditorEl(); const sel = window.getSelection();
+    const range = sel && sel.rangeCount && ed.contains(sel.anchorNode) ? sel.getRangeAt(0).cloneRange() : null;
+    let url = window.prompt('Link address', 'https://');
+    if (!url || !url.trim() || url.trim() === 'https://') return;
+    url = url.trim();
+    if (!/^(https?:|mailto:)/i.test(url)) url = (/@/.test(url) && !/\//.test(url) ? 'mailto:' : 'https://') + url.replace(/^\/+/, '');
+    ed.focus();
+    if (range) { sel.removeAllRanges(); sel.addRange(range); }
+    if (!range || range.collapsed) document.execCommand('insertHTML', false, `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>&nbsp;`);
+    else document.execCommand('createLink', false, url);
+    if (state.editingNoteId) _noteOnInput(state.editingNoteId);
+  }
+
+  function _noteKeydown(e) {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.shiftKey && e.key.toLowerCase() === 'k') { e.preventDefault(); noteCmd('link'); return; }
+    if (mod && e.shiftKey && e.key.toLowerCase() === 'h') { e.preventDefault(); noteCmd('highlight'); return; }
+    if (mod && e.key === '.') { e.preventDefault(); noteCmd('insertUnorderedList'); return; }
+    if (mod && e.key === '1' && e.altKey) { e.preventDefault(); noteCmd('h1'); return; }
+    if (mod && e.key === '2' && e.altKey) { e.preventDefault(); noteCmd('h2'); return; }
+    // Markdown-style shortcuts at the start of a line: "- ", "1. ", "# ", "## ", "[] "
+    if (e.key === ' ' && !mod && !e.altKey) {
+      const sel = window.getSelection(); if (!sel.rangeCount || !sel.isCollapsed) return;
+      const node = sel.anchorNode; const ed = _noteEditorEl(); if (!ed || !ed.contains(node)) return;
+      if (_noteClosest('li,h1,h2,h3')) return;
+      const block = _noteClosest('p,div') || (node.nodeType === 3 ? node : null); if (!block) return;
+      const r = document.createRange();
+      r.setStart(block, 0); r.setEnd(node, sel.anchorOffset);
+      const map = { '-': 'insertUnorderedList', '*': 'insertUnorderedList', '1.': 'insertOrderedList', '#': 'h1', '##': 'h2', '[]': 'check', '[ ]': 'check' };
+      const act = map[r.toString()]; if (!act) return;
+      e.preventDefault();
+      // delete through the editing pipeline (a raw Range delete drops the caret)
+      sel.removeAllRanges(); sel.addRange(r);
+      document.execCommand('delete');
+      noteCmd(act);
+    }
+  }
+
+  function _noteClick(e) {
+    const ed = _noteEditorEl(); if (!ed) return;
+    const a = e.target.closest && e.target.closest('a');
+    if (a && ed.contains(a) && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      const href = a.getAttribute('href') || '';
+      if (/^(https?:|mailto:)/i.test(href)) window.open(href, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    const li = e.target.closest && e.target.closest('li');
+    if (li && ed.contains(li) && li.parentElement.classList.contains('md-checklist') && e.clientX - li.getBoundingClientRect().left < 26) {
+      e.preventDefault();
+      li.setAttribute('data-checked', li.getAttribute('data-checked') === 'true' ? 'false' : 'true');
+      if (state.editingNoteId) _noteOnInput(state.editingNoteId);
+    }
+  }
+
+  // Paste keeps structure (bold, lists, links…) but runs it through the
+  // markdown round-trip so nothing foreign (styles, scripts, fonts) gets in.
+  function _notePaste(e) {
+    const cd = e.clipboardData; if (!cd) return;
+    const html = cd.getData('text/html'); const text = cd.getData('text/plain') || '';
+    e.preventDefault();
+    if (!html && !/\n/.test(text)) { document.execCommand('insertText', false, text); return; }
+    const md = html ? _noteHtmlToMd(new DOMParser().parseFromString(html, 'text/html').body) : text;
+    let out = _noteMdToEditorHtml(md);
+    const single = out.match(/^<p>([\s\S]*?)<\/p>$/);
+    if (single && !/<p>/.test(single[1])) out = single[1];
+    if (out) document.execCommand('insertHTML', false, out);
+  }
+
+  const NOTE_STATE_CMDS = ['bold', 'italic', 'underline', 'strikeThrough', 'insertOrderedList'];
+  function _noteSyncToolbar() {
+    const ed = _noteEditorEl(); if (!ed) return;
+    const sel = window.getSelection(); if (!sel || !sel.rangeCount || !ed.contains(sel.anchorNode)) return;
+    const block = String(document.queryCommandValue('formatBlock') || '').toLowerCase().replace(/[<>]/g, '');
+    const inCheck = _noteInChecklist();
+    const active = {
+      h1: block === 'h1', h2: block === 'h2', check: inCheck,
+      insertUnorderedList: !inCheck && document.queryCommandState('insertUnorderedList'),
+      highlight: String(document.queryCommandValue('hiliteColor') || document.queryCommandValue('backColor') || '').replace(/\s/g, '') === NOTE_HILITE.replace(/\s/g, '')
+    };
+    NOTE_STATE_CMDS.forEach(c => { try { active[c] = document.queryCommandState(c); } catch (_) { active[c] = false; } });
+    document.querySelectorAll('#noteEditor [data-note-cmd]').forEach(b => b.classList.toggle('is-active', !!active[b.dataset.noteCmd]));
+  }
+  document.addEventListener('selectionchange', () => { if (_noteEditorEl()) _noteSyncToolbar(); });
+  document.addEventListener('mousedown', (e) => {
+    const menu = document.getElementById('noteColorMenu');
+    if (menu && !menu.classList.contains('hidden') && !e.target.closest('.note-color-wrap')) menu.classList.add('hidden');
+  });
+  function toggleNoteColorMenu() {
+    const menu = document.getElementById('noteColorMenu'); if (menu) menu.classList.toggle('hidden');
+  }
+
+  function _noteMountEditor(note) {
+    const ed = _noteEditorEl(); if (!ed) return;
+    try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch (_) {}
+    ed.innerHTML = _noteMdToEditorHtml(note.body || '') || '<p><br></p>';
+    ed.classList.toggle('is-empty', _noteIsEmpty(ed));
+    ed.addEventListener('input', (ev) => _noteOnInput(note.id, ev));
+    ed.addEventListener('keydown', _noteKeydown);
+    ed.addEventListener('click', _noteClick);
+    ed.addEventListener('paste', _notePaste);
+  }
+
+  // Debounced autosave while typing: write into the note and update the
+  // "edited" stamp without rebuilding the editor (keeps the caret), then
+  // mirror + persist on a short delay.
   let _noteSaveTimer = null;
   function _noteAutosave(id) {
     const note = state.notes.find(n => n.id === id); if (!note) return;
     const titleEl = document.getElementById('noteTitleInput');
-    const bodyEl = document.getElementById('noteBodyInput');
+    const bodyEl = _noteEditorEl();
     if (titleEl) note.title = titleEl.value;
-    if (bodyEl) note.body = bodyEl.value;
+    if (bodyEl) note.body = _noteHtmlToMd(bodyEl);
     note.updatedAt = new Date().toISOString();
-    const prev = document.getElementById('notePreview'); if (prev && !prev.classList.contains('hidden')) prev.innerHTML = renderMarkdown(note.body);
     const metaEl = document.getElementById('noteEditorMeta'); if (metaEl) metaEl.textContent = _noteFooterText(note);
     clearTimeout(_noteSaveTimer);
     _noteSaveTimer = setTimeout(() => { pbUpdateNote(note); save(); _refreshNotesListOnly(); }, 500);
+  }
+  function _noteTitleKeydown(e) {
+    if (e.key === 'Enter' || (e.key === 'ArrowDown' && !e.shiftKey)) {
+      e.preventDefault();
+      const ed = _noteEditorEl(); if (!ed) return;
+      ed.focus();
+      const r = document.createRange(); r.selectNodeContents(ed); r.collapse(true);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
   }
   function toggleNotePin(id) {
     const note = state.notes.find(n => n.id === id); if (!note) return;
@@ -5415,30 +5766,6 @@
     await save();
     renderEverything();
     toast('Moved to Trash', 'Note moved to Trash.', 'success');
-  }
-  // Markdown toolbar for the note body (mirrors the task-notes mdTool).
-  function applyNoteMdTool(action) {
-    const ta = document.getElementById('noteBodyInput'); if (!ta) return;
-    ta.focus();
-    const start = ta.selectionStart, end = ta.selectionEnd, val = ta.value, sel = val.slice(start, end);
-    const lineStart = val.lastIndexOf('\n', start - 1) + 1;
-    if (action === 'bold') ta.setRangeText(`**${sel || 'bold text'}**`, start, end, 'end');
-    else if (action === 'italic') ta.setRangeText(`*${sel || 'italic text'}*`, start, end, 'end');
-    else if (action === 'link') ta.setRangeText(`[${sel || 'link text'}](https://)`, start, end, 'end');
-    else if (action === 'h') ta.setRangeText('## ', lineStart, lineStart, 'end');
-    else if (action === 'ul') ta.setRangeText('- ', lineStart, lineStart, 'end');
-    else if (action === 'ol') ta.setRangeText('1. ', lineStart, lineStart, 'end');
-    if (state.editingNoteId) _noteAutosave(state.editingNoteId);
-  }
-  function toggleNotePreview() {
-    const prev = document.getElementById('notePreview');
-    const sheet = document.getElementById('noteSheet');
-    const btn = document.getElementById('notePreviewToggle');
-    const body = document.getElementById('noteBodyInput');
-    if (!prev || !sheet) return;
-    const hiding = !prev.classList.contains('hidden');
-    if (hiding) { prev.classList.add('hidden'); sheet.classList.remove('split'); if (btn) btn.innerHTML = '<i class="fa-solid fa-eye mr-1"></i>Preview'; }
-    else { prev.innerHTML = renderMarkdown(body ? body.value : ''); prev.classList.remove('hidden'); sheet.classList.add('split'); if (btn) btn.innerHTML = '<i class="fa-solid fa-eye-slash mr-1"></i>Hide preview'; }
   }
 
   function renderNoteCard(note) {
@@ -5466,35 +5793,43 @@
     const swatches = ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
     const colors = `<button type="button" title="No color" onclick="setNoteColor('${note.id}','')" class="color-swatch note-color-none ${!note.color ? 'selected' : ''}"></button>`
       + swatches.map(c => `<button type="button" title="Color" onclick="setNoteColor('${note.id}','${c}')" class="color-swatch ${note.color === c ? 'selected' : ''}" style="background:${c}"></button>`).join('');
+    const b = (cmd, title, icon) => `<button type="button" data-note-cmd="${cmd}" title="${title}" onmousedown="event.preventDefault()" onclick="noteCmd('${cmd}')" class="note-rb">${icon}</button>`;
+    const sep = '<span class="note-rb-sep"></span>';
     return `
-    <div class="flex items-center gap-3 mb-4">
-      <input id="noteTitleInput" value="${escapeHtml(note.title || '')}" oninput="_noteAutosave('${note.id}')" maxlength="120" placeholder="Untitled note" class="note-title-input flex-1 min-w-0" />
-      <div class="flex items-center gap-1 shrink-0">
-        <button type="button" title="${note.pinned ? 'Unpin' : 'Pin to top'}" onclick="toggleNotePin('${note.id}')" class="note-tool-btn" style="${note.pinned ? 'color:var(--accent)' : ''}"><i class="fa-solid fa-thumbtack"></i></button>
-        <button type="button" title="Move to Trash" onclick="deleteNote('${note.id}')" class="note-tool-btn danger"><i class="fa-solid fa-trash-can"></i></button>
+    <div class="note-ribbon">
+      ${b('bold', 'Bold (Ctrl+B)', '<i class="fa-solid fa-bold"></i>')}
+      ${b('italic', 'Italic (Ctrl+I)', '<i class="fa-solid fa-italic"></i>')}
+      ${b('underline', 'Underline (Ctrl+U)', '<i class="fa-solid fa-underline"></i>')}
+      ${b('strikeThrough', 'Strikethrough', '<i class="fa-solid fa-strikethrough"></i>')}
+      ${b('highlight', 'Highlight (Ctrl+Shift+H)', '<i class="fa-solid fa-highlighter"></i>')}
+      ${sep}
+      ${b('h1', 'Heading 1', '<span class="note-rb-txt">H1</span>')}
+      ${b('h2', 'Heading 2', '<span class="note-rb-txt">H2</span>')}
+      ${sep}
+      ${b('insertUnorderedList', 'Bulleted list', '<i class="fa-solid fa-list-ul"></i>')}
+      ${b('insertOrderedList', 'Numbered list', '<i class="fa-solid fa-list-ol"></i>')}
+      ${b('check', 'To-do checklist', '<i class="fa-regular fa-square-check"></i>')}
+      ${sep}
+      ${b('link', 'Link (Ctrl+K)', '<i class="fa-solid fa-link"></i>')}
+      ${b('removeFormat', 'Clear formatting', '<i class="fa-solid fa-text-slash"></i>')}
+      <span class="note-rb-spacer"></span>
+      <div class="note-color-wrap">
+        <button type="button" title="Note color" onclick="toggleNoteColorMenu()" class="note-rb"><span class="note-color-dot" style="${note.color ? `background:${escapeHtml(note.color)}` : ''}"></span></button>
+        <div id="noteColorMenu" class="note-color-menu hidden">${colors}</div>
       </div>
+      <button type="button" title="${note.pinned ? 'Unpin' : 'Pin to top'}" onclick="toggleNotePin('${note.id}')" class="note-rb ${note.pinned ? 'is-active' : ''}"><i class="fa-solid fa-thumbtack"></i></button>
+      <button type="button" title="Move to Trash" onclick="deleteNote('${note.id}')" class="note-rb danger"><i class="fa-regular fa-trash-can"></i></button>
     </div>
-    <div class="note-toolbar mb-3">
-      <div class="note-tool-group">
-        <button type="button" title="Bold" onclick="applyNoteMdTool('bold')" class="note-tool-btn"><i class="fa-solid fa-bold"></i></button>
-        <button type="button" title="Italic" onclick="applyNoteMdTool('italic')" class="note-tool-btn"><i class="fa-solid fa-italic"></i></button>
-        <button type="button" title="Heading" onclick="applyNoteMdTool('h')" class="note-tool-btn"><i class="fa-solid fa-heading"></i></button>
-        <button type="button" title="Bulleted list" onclick="applyNoteMdTool('ul')" class="note-tool-btn"><i class="fa-solid fa-list-ul"></i></button>
-        <button type="button" title="Numbered list" onclick="applyNoteMdTool('ol')" class="note-tool-btn"><i class="fa-solid fa-list-ol"></i></button>
-        <button type="button" title="Link" onclick="applyNoteMdTool('link')" class="note-tool-btn"><i class="fa-solid fa-link"></i></button>
-      </div>
-      <div class="color-swatch-grid" style="gap:0.45rem">${colors}</div>
-      <button type="button" id="notePreviewToggle" onclick="toggleNotePreview()" class="btn-secondary !py-1.5 !px-3 text-xs" style="margin-left:auto"><i class="fa-solid fa-eye-slash mr-1"></i>Hide preview</button>
+    <div class="note-page">
+      <input id="noteTitleInput" value="${escapeHtml(note.title || '')}" oninput="_noteAutosave('${note.id}')" onkeydown="_noteTitleKeydown(event)" maxlength="120" placeholder="Untitled" class="note-title-input" autocomplete="off" />
+      <div class="note-page-date">${escapeHtml(_noteCreatedText(note))}</div>
+      <div id="noteBodyEditor" class="note-rich" contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Note body" data-placeholder="Start typing…"></div>
     </div>
-    <div id="noteSheet" class="note-sheet split">
-      <textarea id="noteBodyInput" oninput="_noteAutosave('${note.id}')" placeholder="Start writing…  Use **bold**, # headings, - lists." class="note-body-input">${escapeHtml(note.body || '')}</textarea>
-      <div id="notePreview" class="jdin-md note-preview-pane">${renderMarkdown(note.body || '')}</div>
-    </div>
-    <div id="noteEditorMeta" class="text-[11px] mt-3" style="color:var(--muted)">${escapeHtml(_noteFooterText(note))}</div>`;
+    <div id="noteEditorMeta" class="note-page-meta">${escapeHtml(_noteFooterText(note))}</div>`;
   }
   function renderNoteEmptyState() {
     const has = (state.notes || []).length > 0;
-    return `<div class="flex flex-col items-center justify-center text-center py-20" style="min-height:320px;color:var(--muted)">
+    return `<div class="flex flex-col items-center justify-center text-center py-20" style="min-height:320px;color:var(--muted);padding-left:1.5rem;padding-right:1.5rem">
       <div class="w-16 h-16 rounded-2xl grid place-items-center mb-4" style="background:var(--surface-soft);border:1px solid var(--line)">
         <i class="fa-regular fa-note-sticky text-3xl" style="color:var(--accent);opacity:.9"></i>
       </div>
@@ -5517,6 +5852,7 @@
     _refreshNotesListOnly();
     const note = state.notes.find(n => n.id === state.editingNoteId);
     editorEl.innerHTML = note ? renderNoteEditor(note) : renderNoteEmptyState();
+    if (note) _noteMountEditor(note);
   }
   window.renderNotes = renderNotes;
   window.createNote = createNote;
@@ -5526,8 +5862,9 @@
   window.toggleNotePin = toggleNotePin;
   window.setNoteColor = setNoteColor;
   window.deleteNote = deleteNote;
-  window.applyNoteMdTool = applyNoteMdTool;
-  window.toggleNotePreview = toggleNotePreview;
+  window.noteCmd = noteCmd;
+  window.toggleNoteColorMenu = toggleNoteColorMenu;
+  window._noteTitleKeydown = _noteTitleKeydown;
 
   function renderTodos() {
     const sortEl = document.getElementById('myTodoSort');
