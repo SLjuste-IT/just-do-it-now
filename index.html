@@ -248,6 +248,16 @@
     .note-rb-txt { font-weight: 800; font-size: 0.75rem; letter-spacing: -0.02em; }
     .note-rb-sep { width: 1px; height: 1.2rem; background: var(--line); margin: 0 0.3rem; }
     .note-rb-spacer { flex: 1; }
+    .note-project-pick { display: inline-flex; align-items: center; gap: 0.4rem; height: 2rem; max-width: 12rem; padding: 0 0.55rem; margin-right: 0.25rem; border-radius: 0.45rem; border: 1px solid var(--line); color: var(--muted); font-size: 0.78rem; cursor: pointer; }
+    .note-project-pick:hover { color: var(--ink); border-color: var(--line-strong); }
+    .note-project-pick i { font-size: 0.75rem; color: var(--np-color, var(--muted)); }
+    .note-project-pick select { appearance: none; -webkit-appearance: none; border: none; background: transparent; color: inherit; font: inherit; font-weight: 600; min-width: 0; max-width: 10rem; text-overflow: ellipsis; cursor: pointer; padding: 0; }
+    .note-project-pick select:focus { outline: none; }
+    .note-project-pick select option { color: var(--ink); background: var(--surface-strong); }
+    .note-project-chip { display: inline-flex; align-items: center; gap: 0.3rem; max-width: 100%; margin-top: 0.45rem; padding: 0.1rem 0.45rem; border-radius: 9999px; font-size: 10px; font-weight: 700; color: var(--ink); background: color-mix(in srgb, var(--np-color, var(--accent)), transparent 85%); }
+    .note-project-chip i { color: var(--np-color, var(--accent)); font-size: 9px; }
+    .project-note-row { width: 100%; display: flex; align-items: center; gap: 0.75rem; text-align: left; padding: 0.65rem 0.8rem; border-radius: 0.75rem; border: 1px solid var(--line); background: var(--surface-soft); transition: all 140ms ease; }
+    .project-note-row:hover { border-color: color-mix(in srgb, var(--accent), transparent 55%); background: var(--surface-strong); }
     .note-color-wrap { position: relative; }
     .note-color-dot { width: 0.95rem; height: 0.95rem; border-radius: 9999px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
     .note-color-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; display: flex; gap: 0.4rem; padding: 0.55rem; border-radius: 0.8rem; background: var(--surface-strong); border: 1px solid var(--line); box-shadow: var(--shadow-lg, 0 10px 30px rgba(0,0,0,.18)); }
@@ -1794,6 +1804,7 @@
                 <h3 class="text-sm font-bold uppercase tracking-wider text-slate-500">My Notes</h3>
                 <span class="text-[11px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg" id="noteCount">0</span>
               </div>
+              <select id="noteProjectFilter" onchange="setNoteProjectFilter(this.value)" aria-label="Filter notes by project" class="ui-input text-sm mb-3 hidden"></select>
               <div id="noteList" class="space-y-2"></div>
             </div>
             <div class="lg:col-span-2 card note-editor-card">
@@ -3371,7 +3382,7 @@
         return;
       }
       const pTodos=window.projectTaskScope(p.id); const done=pTodos.filter(t=>t.completed).length; const pct=pTodos.length?Math.round((done/pTodos.length)*100):0;
-      container.innerHTML=`<div class="flex items-start justify-between mb-4"><div class="flex items-center gap-3 min-w-0"><span class="w-5 h-5 rounded shadow-sm shrink-0" style="background:${escapeHtml(p.color)}"></span><h3 class="text-2xl font-black text-slate-900 dark:text-white tracking-tight truncate">${escapeHtml(p.name)}</h3></div><div class="flex items-center gap-2 shrink-0"><button type="button" aria-label="Edit project" onclick="editProject('${p.id}')" class="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition"><i class="fa-solid fa-pen"></i></button><button type="button" aria-label="Delete project" onclick="deleteProject('${p.id}')" class="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition"><i class="fa-solid fa-trash"></i></button></div></div><p class="text-sm text-slate-500 mb-6">${escapeHtml(p.description||'No description.')}</p><div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700 mb-6"><div class="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-500 mb-2"><span>Progress</span><span>${done}/${pTodos.length} Tasks (${pct}%)</span></div><div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden"><div class="bg-indigo-500 h-full rounded-full" style="width:${pct}%"></div></div></div>${window.renderProjectTaskArea ? window.renderProjectTaskArea(p.id) : ''}`;
+      container.innerHTML=`<div class="flex items-start justify-between mb-4"><div class="flex items-center gap-3 min-w-0"><span class="w-5 h-5 rounded shadow-sm shrink-0" style="background:${escapeHtml(p.color)}"></span><h3 class="text-2xl font-black text-slate-900 dark:text-white tracking-tight truncate">${escapeHtml(p.name)}</h3></div><div class="flex items-center gap-2 shrink-0"><button type="button" aria-label="Edit project" onclick="editProject('${p.id}')" class="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition"><i class="fa-solid fa-pen"></i></button><button type="button" aria-label="Delete project" onclick="deleteProject('${p.id}')" class="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition"><i class="fa-solid fa-trash"></i></button></div></div><p class="text-sm text-slate-500 mb-6">${escapeHtml(p.description||'No description.')}</p><div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700 mb-6"><div class="flex justify-between text-xs font-bold uppercase tracking-wider text-slate-500 mb-2"><span>Progress</span><span>${done}/${pTodos.length} Tasks (${pct}%)</span></div><div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden"><div class="bg-indigo-500 h-full rounded-full" style="width:${pct}%"></div></div></div>${window.renderProjectTaskArea ? window.renderProjectTaskArea(p.id) : ''}${window.renderProjectNotesArea ? window.renderProjectNotesArea(p.id) : ''}`;
     }
 
     function renderReminders() {
@@ -5366,10 +5377,17 @@
 
   // Notes for the view: filtered by the global search box, pinned first, then
   // most-recently-edited.
+  // A note's linked project (null if unlinked or the project was deleted).
+  function _noteProject(note) {
+    return (note && note.projectId && (state.projects || []).find(p => p.id === note.projectId)) || null;
+  }
   function visibleNotes() {
     const q = (state.search || '').trim().toLowerCase();
+    const pf = state.noteProjectFilter || '';
     let items = (state.notes || []).slice();
-    if (q) items = items.filter(n => [n.title, n.body].join(' ').toLowerCase().includes(q));
+    if (pf === 'none') items = items.filter(n => !_noteProject(n));
+    else if (pf) items = items.filter(n => n.projectId === pf);
+    if (q) items = items.filter(n => [n.title, n.body, _noteProject(n)?.name || ''].join(' ').toLowerCase().includes(q));
     return items.sort((a, b) => {
       if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
       return String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || ''));
@@ -5411,9 +5429,12 @@
   function _noteSnippet(body) {
     return _notePlainText(body).slice(0, 120);
   }
-  function createNote() {
+  // opts.projectId links the new note; otherwise it inherits the list's project filter.
+  function createNote(opts) {
     const now = new Date().toISOString();
-    const note = { id: generatePBId(), title: '', body: '', color: '', pinned: false, tags: [], createdAt: now, updatedAt: now };
+    const pf = state.noteProjectFilter;
+    const projectId = (opts && opts.projectId) || (pf && pf !== 'none' ? pf : '');
+    const note = { id: generatePBId(), title: '', body: '', color: '', pinned: false, tags: [], projectId, createdAt: now, updatedAt: now };
     state.notes.unshift(note);
     state.editingNoteId = note.id;
     pbCreateNote(note);
@@ -5756,6 +5777,53 @@
     note.color = color || ''; note.updatedAt = new Date().toISOString();
     pbUpdateNote(note); save(); renderNotes();
   }
+  // Link lives only in the appData blob (no PB notes-schema change needed).
+  function setNoteProject(id, projectId) {
+    const note = state.notes.find(n => n.id === id); if (!note) return;
+    note.projectId = projectId || ''; note.updatedAt = new Date().toISOString();
+    save(); _refreshNotesListOnly();
+    const sel = document.getElementById('noteProjectSelect');
+    const p = _noteProject(note);
+    if (sel) sel.parentElement.style.setProperty('--np-color', p ? p.color : '');
+    if (typeof window.renderSelectedProject === 'function') window.renderSelectedProject();
+  }
+  function setNoteProjectFilter(value) {
+    state.noteProjectFilter = value || '';
+    _refreshNotesListOnly();
+  }
+  // From a project: jump to Notes, either opening a note or starting one linked to it.
+  function openProjectNote(noteId) {
+    if (typeof window.switchView === 'function') window.switchView('notes');
+    openNote(noteId);
+  }
+  function newProjectNote(projectId) {
+    if (typeof window.switchView === 'function') window.switchView('notes');
+    createNote({ projectId });
+  }
+  // Notes section for the project detail panel (rendered by the first script block).
+  function renderProjectNotesArea(projectId) {
+    const notes = (state.notes || []).filter(n => n.projectId === projectId)
+      .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+    const rows = notes.map(n => {
+      const title = (n.title || '').trim() || 'Untitled note';
+      const snippet = _noteSnippet(n.body);
+      return `<button type="button" onclick="openProjectNote('${n.id}')" class="project-note-row">
+        <i class="fa-regular fa-note-sticky" style="color:${n.color ? escapeHtml(n.color) : 'var(--muted)'}"></i>
+        <span class="min-w-0 flex-1">
+          <span class="block font-bold text-sm truncate" style="color:var(--ink)">${escapeHtml(title)}</span>
+          ${snippet ? `<span class="block text-xs truncate" style="color:var(--muted)">${escapeHtml(snippet)}</span>` : ''}
+        </span>
+        <span class="text-[10px] shrink-0" style="color:var(--muted)">${escapeHtml(_noteUpdatedText(n).replace(/^Edited /, ''))}</span>
+      </button>`;
+    }).join('');
+    return `<div class="mt-6">
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="text-sm font-bold uppercase tracking-wider text-slate-500">Notes <span class="ml-1 text-[11px] opacity-80">${notes.length}</span></h4>
+        <button type="button" onclick="newProjectNote('${projectId}')" class="btn-secondary !py-1.5 !px-3 text-xs"><i class="fa-solid fa-plus mr-1"></i>New note</button>
+      </div>
+      ${rows ? `<div class="space-y-2">${rows}</div>` : '<div class="text-sm text-slate-500 text-center py-5 rounded-xl" style="border:1px dashed var(--line)">No notes linked yet.</div>'}
+    </div>`;
+  }
   async function deleteNote(id) {
     const note = state.notes.find(n => n.id === id); if (!note) return;
     if (!(await customConfirm('Move to Trash', 'Move this note to Trash? You can restore it later.'))) return;
@@ -5772,6 +5840,7 @@
     const active = note.id === state.editingNoteId;
     const title = (note.title || '').trim() || 'Untitled note';
     const snippet = _noteSnippet(note.body);
+    const project = _noteProject(note);
     const dot = note.color ? `<span class="inline-block w-2.5 h-2.5 rounded-full shrink-0 mt-1.5" style="background:${escapeHtml(note.color)}"></span>` : '';
     const activeStyle = active ? 'border-color:var(--accent);box-shadow:var(--ring);background:var(--surface-strong);' : '';
     return `<button type="button" onclick="openNote('${note.id}')" style="${activeStyle}"
@@ -5784,6 +5853,7 @@
             ${note.pinned ? '<i class="fa-solid fa-thumbtack text-[11px] shrink-0 mt-0.5" style="color:var(--accent)"></i>' : ''}
           </div>
           ${snippet ? `<div class="text-xs mt-1 break-words" style="color:var(--muted)">${escapeHtml(snippet)}</div>` : '<div class="text-xs italic mt-1" style="color:var(--muted);opacity:.65">Empty note</div>'}
+          ${project ? `<div class="note-project-chip" style="--np-color:${escapeHtml(project.color || '')}"><i class="fa-solid fa-folder"></i><span class="truncate">${escapeHtml(project.name)}</span></div>` : ''}
           <div class="text-[10px] mt-2" style="color:var(--muted);opacity:.85">${escapeHtml(_noteUpdatedText(note))}</div>
         </div>
       </div>
@@ -5813,6 +5883,13 @@
       ${b('link', 'Link (Ctrl+K)', '<i class="fa-solid fa-link"></i>')}
       ${b('removeFormat', 'Clear formatting', '<i class="fa-solid fa-text-slash"></i>')}
       <span class="note-rb-spacer"></span>
+      <label class="note-project-pick" title="Link to a project" style="--np-color:${escapeHtml(_noteProject(note)?.color || '')}">
+        <i class="fa-solid fa-folder"></i>
+        <select id="noteProjectSelect" onchange="setNoteProject('${note.id}', this.value)" aria-label="Linked project">
+          <option value="">No project</option>
+          ${(state.projects || []).map(p => `<option value="${escapeHtml(p.id)}" ${p.id === note.projectId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+        </select>
+      </label>
       <div class="note-color-wrap">
         <button type="button" title="Note color" onclick="toggleNoteColorMenu()" class="note-rb"><span class="note-color-dot" style="${note.color ? `background:${escapeHtml(note.color)}` : ''}"></span></button>
         <div id="noteColorMenu" class="note-color-menu hidden">${colors}</div>
@@ -5841,8 +5918,18 @@
   function _refreshNotesListOnly() {
     const listEl = document.getElementById('noteList'); if (!listEl) return;
     const notes = visibleNotes();
-    const empty = (state.search || '').trim() ? 'No notes match your search.' : 'No notes yet. Create your first note.';
+    const filtering = (state.search || '').trim() || state.noteProjectFilter;
+    const empty = filtering ? 'No matching notes.' : 'No notes yet. Create your first note.';
     listEl.innerHTML = notes.length ? notes.map(renderNoteCard).join('') : `<div class="text-sm text-slate-500 text-center py-8">${empty}</div>`;
+    const filterEl = document.getElementById('noteProjectFilter');
+    if (filterEl) {
+      const projects = state.projects || [];
+      if (state.noteProjectFilter && state.noteProjectFilter !== 'none' && !projects.some(p => p.id === state.noteProjectFilter)) state.noteProjectFilter = '';
+      const cur = state.noteProjectFilter || '';
+      filterEl.innerHTML = `<option value="">All notes</option><option value="none" ${cur === 'none' ? 'selected' : ''}>No project</option>`
+        + projects.map(p => `<option value="${escapeHtml(p.id)}" ${p.id === cur ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('');
+      filterEl.classList.toggle('hidden', !projects.length);
+    }
     const countEl = document.getElementById('noteCount'); if (countEl) countEl.textContent = (state.notes || []).length;
   }
   function renderNotes() {
@@ -5861,6 +5948,11 @@
   window._noteAutosave = _noteAutosave;
   window.toggleNotePin = toggleNotePin;
   window.setNoteColor = setNoteColor;
+  window.setNoteProject = setNoteProject;
+  window.setNoteProjectFilter = setNoteProjectFilter;
+  window.openProjectNote = openProjectNote;
+  window.newProjectNote = newProjectNote;
+  window.renderProjectNotesArea = renderProjectNotesArea;
   window.deleteNote = deleteNote;
   window.noteCmd = noteCmd;
   window.toggleNoteColorMenu = toggleNoteColorMenu;
